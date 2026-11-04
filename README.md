@@ -4,6 +4,11 @@ A client-side Fabric mod that projects interactive 3D holographic container inte
 
 Works across all modern Minecraft versions (**1.21 – 1.21.11** and **26.1 – 26.3**).
 
+## ⚠️ Requirements
+HoloChest strictly requires **[m4lib](https://modrinth.com/mod/m4lib)** to work:
+- **Modrinth:** [Download m4lib](https://modrinth.com/mod/m4lib)
+- **GitHub:** [m4ssivee/m4lib](https://github.com/m4ssivee/m4lib)
+
 ## Features
 - **In-World 3D Holograms:** Interactively view and manage any container (Chests, Double Chests, Ender Chests, Shulker Boxes, Barrels, Hoppers, Furnaces, Blast Furnaces, Smokers, Crafters, Dispensers, Droppers) directly in the world without a full-screen pause screen.
 - **Dynamic Lid Animations:** Targeted containers realistically animate open and closed as you hover and look away.
@@ -18,23 +23,19 @@ You can download the mod from **[Modrinth](https://modrinth.com/mod/holochest)**
 
 | Minecraft Version | Download |
 | :--- | :--- |
-| **1.21** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.jar) |
-| **1.21.1** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.1.jar) |
-| **1.21.2** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.2.jar) |
-| **1.21.3** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.3.jar) |
-| **1.21.4** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.4.jar) |
-| **1.21.5** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.5.jar) |
-| **1.21.6** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.6.jar) |
-| **1.21.7** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.7.jar) |
-| **1.21.8** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.8.jar) |
-| **1.21.9** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.9.jar) |
-| **1.21.10** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.10.jar) |
-| **1.21.11** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.1.21.11.jar) |
-| **26.1** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.26.1.jar) |
-| **26.1.1** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.26.1.1.jar) |
-| **26.1.2** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.26.1.2.jar) |
-| **26.2** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.26.2.jar) |
-| **26.3** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest.26.3.jar) |
+| **1.21 – 1.21.1** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21-1.21.1.jar) |
+| **1.21.2 – 1.21.3** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.2-1.21.3.jar) |
+| **1.21.4** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.4.jar) |
+| **1.21.5** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.5.jar) |
+| **1.21.6** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.6.jar) |
+| **1.21.7** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.7.jar) |
+| **1.21.8** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.8.jar) |
+| **1.21.9** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.9.jar) |
+| **1.21.10** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.10.jar) |
+| **1.21.11** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-1.21.11.jar) |
+| **26.1 – 26.1.2** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-26.1-26.1.2.jar) |
+| **26.2** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-26.2.jar) |
+| **26.3** | [Download](https://github.com/RealBnc/HoloChest/releases/download/v1.0.0/HoloChest-26.3.jar) |
 
 > All compiled files are also available on the **[GitHub Releases Page](https://github.com/RealBnc/HoloChest/releases)**.
 
