@@ -3,19 +3,19 @@ package com.holochest.render;
 import com.holochest.hologram.FlyingItem;
 import com.holochest.hologram.HoloChestManager;
 import com.holochest.hologram.HoloSession;
-import net.minecraft.block.AbstractChestBlock;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.AbstractChestBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Vector2f;
 
 import java.util.*;
@@ -25,7 +25,7 @@ public class HoloHudRenderer {
     private static class SessionRenderData {
         HoloSession session;
         HoloTheme theme;
-        Vec3d emitterPos;
+        Vec3 emitterPos;
         HoloWorldProjector.ScreenPos projEmitter;
         HoloWorldProjector.ScreenPos projPanel;
         float distance3D;
@@ -44,44 +44,72 @@ public class HoloHudRenderer {
         boolean isHovered = false;
     }
 
-        private static BlockPos persistentFocusedPos = null;
     private static ItemStack previewHoverStack = null;
+    private static int previewHoverSlot = -1;
     private static Vector2f previewHoverPos = null;
     private static float previewHoverSize = 18f;
 
-    public static BlockPos getPersistentFocusedPos() {
-        return persistentFocusedPos;
+    private static ItemStack lastTooltipStack = ItemStack.EMPTY;
+    private static List<Component> cachedTooltipLines = null;
+
+    private static final java.lang.invoke.MethodHandle SCREEN_GETTER = resolveScreenGetter();
+
+    private static java.lang.invoke.MethodHandle resolveScreenGetter() {
+        try {
+            java.lang.reflect.Method m = net.minecraft.client.gui.Gui.class.getMethod("screen");
+            return java.lang.invoke.MethodHandles.lookup().unreflect(m);
+        } catch (Throwable t) {
+            try {
+                java.lang.reflect.Field f = Minecraft.class.getField("screen");
+                return java.lang.invoke.MethodHandles.lookup().unreflectGetter(f);
+            } catch (Throwable t2) {
+                return null;
+            }
+        }
     }
 
-    public static void render(DrawContext context, RenderTickCounter tickCounter) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.world == null || client.player == null || client.getWindow() == null) return;
+    private static boolean isAnyScreenOpen(Minecraft client) {
+        if (client == null) return false;
+        try {
+            if (SCREEN_GETTER != null) {
+                Object target = (SCREEN_GETTER.type().parameterType(0) == Minecraft.class) ? client : client.gui;
+                if (target != null) {
+                    return SCREEN_GETTER.invoke(target) != null;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static void render(GuiGraphicsExtractor extractor, DeltaTracker deltaTracker) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null || client.player == null || client.getWindow() == null) return;
 
         previewHoverStack = null;
+        previewHoverSlot = -1;
         previewHoverPos = null;
 
         HoloChestManager manager = HoloChestManager.getInstance();
 
-        boolean isScreenOpen = (client.currentScreen != null);
+        boolean isScreenOpen = isAnyScreenOpen(client);
         if (isScreenOpen) {
             manager.setAimingAtPanel(false);
             manager.setHoverState(null, -1);
         }
 
-        renderFlyingItems(context, client);
+        renderFlyingItems(extractor, client);
 
         if (!manager.hasActiveSessions()) {
             manager.setAimingAtPanel(false);
             manager.setHoverState(null, -1);
-            
             return;
         }
 
-        Camera camera = client.gameRenderer.getCamera();
+        Camera camera = HoloWorldProjector.getCamera(client.gameRenderer);
         if (camera == null) return;
 
-        int sw = client.getWindow().getScaledWidth();
-        int sh = client.getWindow().getScaledHeight();
+        int sw = client.getWindow().getGuiScaledWidth();
+        int sh = client.getWindow().getGuiScaledHeight();
         float crossX = sw / 2f;
         float crossY = sh / 2f;
 
@@ -103,14 +131,14 @@ public class HoloHudRenderer {
                 centerZ = (pos.getZ() + p.getZ() + 1.0) / 2.0;
             }
 
-            BlockState state = client.world.getBlockState(pos);
+            BlockState state = client.level.getBlockState(pos);
             Block b = state.getBlock();
 
             double emitterY = (b instanceof AbstractChestBlock) ? pos.getY() + 0.875 : pos.getY() + 1.0;
-            Vec3d emitterPos = new Vec3d(centerX, emitterY, centerZ);
+            Vec3 emitterPos = new Vec3(centerX, emitterY, centerZ);
 
             double panelY = emitterY + 0.50 + (smooth * 0.35);
-            Vec3d panelPos = new Vec3d(centerX, panelY, centerZ);
+            Vec3 panelPos = new Vec3(centerX, panelY, centerZ);
 
             HoloWorldProjector.ScreenPos projEmitter = HoloWorldProjector.project(emitterPos);
             HoloWorldProjector.ScreenPos projPanel = HoloWorldProjector.project(panelPos);
@@ -118,15 +146,14 @@ public class HoloHudRenderer {
 
             SessionRenderData data = new SessionRenderData();
             data.session = session;
-            data.theme = HoloTheme.getTheme(state); 
+            data.theme = HoloTheme.getTheme(state);
             data.emitterPos = emitterPos;
             data.projEmitter = projEmitter;
             data.projPanel = projPanel;
 
-            data.distance3D = (float) camera.getCameraPos().distanceTo(panelPos);
+            data.distance3D = (float) camera.position().distanceTo(panelPos);
             float clampedDist = Math.clamp(data.distance3D, 2.0f, 40.0f);
             float baseScale = Math.clamp(4.8f / clampedDist, 0.75f, 1.15f);
-            boolean isFocused = true;
             data.scale = baseScale * session.getScaleModifier() * (0.35f + 0.65f * smooth);
 
             data.slotSize = 18f * data.scale;
@@ -158,11 +185,8 @@ public class HoloHudRenderer {
         if (visibleEntries.isEmpty()) {
             manager.setAimingAtPanel(false);
             manager.setHoverState(null, -1);
-            
             return;
         }
-
-        
 
         for (SessionRenderData d : visibleEntries) {
             float panelCenterX = d.projPanel.x();
@@ -204,14 +228,14 @@ public class HoloHudRenderer {
             int baseAlpha = (int) (smooth * 255);
             int alpha = baseAlpha;
 
-            float tx = d.projEmitter.x();
-            float ty = d.projEmitter.y() - 1f;
+            float tx = d.projEmitter != null ? d.projEmitter.x() : d.projPanel.x();
+            float ty = d.projEmitter != null ? d.projEmitter.y() - 1f : d.projPanel.y() + 30f;
 
-            float targetBottomY = (d.projPanel.y() - 16f * d.scale) + 0f;
-            float panelCenterX = d.projPanel.x() + 0f;
+            float targetBottomY = (d.projPanel.y() - 16f * d.scale);
+            float panelCenterX = d.projPanel.x();
 
             float riseProgress = closing ? (progress * progress) : (1.0f - (float) Math.pow(1.0f - progress, 3));
-            float currentBottomY = MathHelper.lerp(riseProgress, ty, targetBottomY);
+            float currentBottomY = Mth.lerp(riseProgress, ty, targetBottomY);
 
             float unfold = closing ? progress : Math.clamp(progress / 0.65f, 0.08f, 1.0f);
             float currentH = d.totalH * unfold;
@@ -249,41 +273,41 @@ public class HoloHudRenderer {
             if (!closing && progress < 0.88f) {
                 float pulse = 1.0f + (1.0f - progress / 0.88f) * 0.7f;
                 int pulseR = (int) (emitterR * pulse);
-                context.fill((int) (tx - pulseR), (int) ty - 1, (int) (tx + pulseR), (int) ty + 1, (Math.min(drawAlpha, 240) << 24) | 0xFFFFFF);
+                extractor.fill((int) (tx - pulseR), (int) ty - 1, (int) (tx + pulseR), (int) ty + 1, (Math.min(drawAlpha, 240) << 24) | 0xFFFFFF);
             } else {
-                context.fill((int) (tx - emitterR), (int) ty - 1, (int) (tx + emitterR), (int) ty + 1, beamColor);
-                context.fill((int) (tx - emitterR * 0.5f), (int) ty - 2, (int) (tx + emitterR * 0.5f), (int) ty + 2, borderColor);
+                extractor.fill((int) (tx - emitterR), (int) ty - 1, (int) (tx + emitterR), (int) ty + 1, beamColor);
+                extractor.fill((int) (tx - emitterR * 0.5f), (int) ty - 2, (int) (tx + emitterR * 0.5f), (int) ty + 2, borderColor);
             }
 
-            drawConnectedTail(context, bx1, bx2, bottomY, tx, ty, bgBotColor, borderColor, beamColor);
+            drawConnectedTail(extractor, bx1, bx2, bottomY, tx, ty, bgBotColor, borderColor, beamColor);
 
             int backingAlpha = isFocused ? Math.min(drawAlpha, 252) : Math.min(drawAlpha, 85);
-            context.fill((int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, (backingAlpha << 24) | 0x060913);
+            extractor.fill((int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, (backingAlpha << 24) | 0x060913);
 
-            context.fillGradient((int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, bgTopColor, bgBotColor);
+            extractor.fillGradient((int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, bgTopColor, bgBotColor);
 
             int scanlineColor = (Math.min(drawAlpha, 25) << 24) | theme.primaryColor;
             for (int y = (int) startY + 2; y < (int) bottomY; y += 3) {
-                context.fill((int) startX + 1, y, (int) (startX + totalW) - 1, y + 1, scanlineColor);
+                extractor.fill((int) startX + 1, y, (int) (startX + totalW) - 1, y + 1, scanlineColor);
             }
 
             float sweep = (now % 2400) / 2400f;
             int sweepY = (int) (startY + sweep * currentH);
             if (sweepY < bottomY) {
                 int sweepColor = (Math.min(drawAlpha, 50) << 24) | 0xFFFFFF;
-                context.fill((int) startX + 2, sweepY, (int) (startX + totalW) - 2, sweepY + 2, sweepColor);
+                extractor.fill((int) startX + 2, sweepY, (int) (startX + totalW) - 2, sweepY + 2, sweepColor);
             }
 
             if (!closing && progress < 0.88f) {
                 int flash1 = (int) (startY + ((now * 4) % (int) Math.max(2, currentH)));
                 int flash2 = (int) (startY + (((now * 9) + 33) % (int) Math.max(2, currentH)));
-                context.fill((int) (startX - 4), flash1, (int) (startX + totalW + 4), flash1 + 2, (Math.min(drawAlpha, 235) << 24) | 0xFFFFFF);
-                context.fill((int) (startX - 2), flash2, (int) (startX + totalW + 2), flash2 + 1, (Math.min(drawAlpha, 180) << 24) | theme.primaryColor);
+                extractor.fill((int) (startX - 4), flash1, (int) (startX + totalW + 4), flash1 + 2, (Math.min(drawAlpha, 235) << 24) | 0xFFFFFF);
+                extractor.fill((int) (startX - 2), flash2, (int) (startX + totalW + 2), flash2 + 1, (Math.min(drawAlpha, 180) << 24) | theme.primaryColor);
             }
 
-            drawBubbleBorders(context, (int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, (int) bx1, (int) bx2, borderColor);
+            drawBubbleBorders(extractor, (int) startX, (int) startY, (int) (startX + totalW), (int) bottomY, (int) bx1, (int) bx2, borderColor);
 
-            TextRenderer tr = client.textRenderer;
+            Font font = client.font;
             String titleText = session.getTitle();
             int titleColor = (drawAlpha << 24) | theme.primaryColor;
 
@@ -291,15 +315,15 @@ public class HoloHudRenderer {
                 float fontScale = 1.18f * scale;
                 float availW = (totalW - (session.isFurnace() ? 12f : 28f) * scale) / fontScale;
                 String displayTitle = titleText;
-                if (tr.getWidth(displayTitle) > availW) {
-                    displayTitle = tr.trimToWidth(displayTitle, (int) Math.max(10, availW - 6)) + "...";
+                if (font.width(displayTitle) > availW) {
+                    displayTitle = font.plainSubstrByWidth(displayTitle, (int) Math.max(10, availW - 6)) + "...";
                 }
 
-                context.getMatrices().pushMatrix();
-                context.getMatrices().translate((float)(startX + 6f * scale), (float)(startY + 4.5f * scale));
-                context.getMatrices().scale((float)(fontScale), (float)(fontScale));
-                context.drawTextWithShadow(tr, displayTitle, 0, 0, titleColor);
-                context.getMatrices().popMatrix();
+                extractor.pose().pushMatrix();
+                extractor.pose().translate(startX + 6f * scale, startY + 4.5f * scale);
+                extractor.pose().scale(fontScale, fontScale);
+                extractor.text(font, displayTitle, 0, 0, titleColor, true);
+                extractor.pose().popMatrix();
 
                 if (!session.isFurnace()) {
                     float btnW = 16f * scale;
@@ -313,20 +337,20 @@ public class HoloHudRenderer {
                     int btnBg = isBtnHovered ? ((Math.min(drawAlpha, 210) << 24) | theme.primaryColor) : ((Math.min(drawAlpha, 110) << 24) | 0x060913);
                     int btnBorder = isBtnHovered ? ((drawAlpha << 24) | 0xFFFFFF) : ((Math.min(drawAlpha, 150) << 24) | theme.primaryColor);
 
-                    context.fill((int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBg);
-                    drawBorder(context, (int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBorder);
+                    extractor.fill((int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBg);
+                    drawBorder(extractor, (int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBorder);
 
-                    context.getMatrices().pushMatrix();
-                    context.getMatrices().translate((float)(btnX + 3.8f * scale), (float)(btnY + 1.2f * scale));
+                    extractor.pose().pushMatrix();
+                    extractor.pose().translate(btnX + 3.8f * scale, btnY + 1.2f * scale);
                     float iconScale = 0.95f * scale;
-                    context.getMatrices().scale((float)(iconScale), (float)(iconScale));
+                    extractor.pose().scale(iconScale, iconScale);
                     int iconColor = isBtnHovered ? 0xFFFFFFFF : ((drawAlpha << 24) | 0xE0F7FA);
-                    context.drawTextWithShadow(tr, "⇅", 0, 0, iconColor);
-                    context.getMatrices().popMatrix();
+                    extractor.text(font, "⇅", 0, 0, iconColor, true);
+                    extractor.pose().popMatrix();
 
                     if (isBtnHovered) {
-                        String sortTip = Text.translatable("holochest.sort_tip").getString();
-                        int tipW = tr.getWidth(sortTip);
+                        String sortTip = Component.translatable("holochest.sort_tip").getString();
+                        int tipW = font.width(sortTip);
                         int tipX = (int) (btnX + btnW / 2f - tipW / 2f);
                         int tipY = (int) (startY - 15f * scale);
                         if (tipY < 4) {
@@ -334,9 +358,9 @@ public class HoloHudRenderer {
                         }
                         int badgeBg = (Math.min(drawAlpha, 230) << 24) | 0x060913;
                         int badgeBorder = (drawAlpha << 24) | 0x80D8FF;
-                        context.fill(tipX - 4, tipY - 2, tipX + tipW + 4, tipY + 10, badgeBg);
-                        drawBorder(context, tipX - 4, tipY - 2, tipX + tipW + 4, tipY + 10, badgeBorder);
-                        context.drawTextWithShadow(tr, sortTip, tipX, tipY, 0xFFFFFFFF);
+                        extractor.fill(tipX - 4, tipY - 2, tipX + tipW + 4, tipY + 10, badgeBg);
+                        drawBorder(extractor, tipX - 4, tipY - 2, tipX + tipW + 4, tipY + 10, badgeBorder);
+                        extractor.text(font, sortTip, tipX, tipY, 0xFFFFFFFF, true);
                     }
                 } else {
                     session.setSortButtonHovered(false);
@@ -346,7 +370,6 @@ public class HoloHudRenderer {
             }
 
             if (session.isFurnace()) {
-
                 float slot0X = startX + 16f * scale;
                 float slot0Y = startY + 18f * scale;
                 float slot1X = startX + 16f * scale;
@@ -362,9 +385,9 @@ public class HoloHudRenderer {
                 float flameH = 10f * scale;
                 float litProg = session.getFurnaceLitProgress();
 
-                drawFlameIcon(context, flameX, flameY, flameW, flameH, (Math.min(drawAlpha, 60) << 24) | 0x442200, 1.0f);
+                drawFlameIcon(extractor, flameX, flameY, flameW, flameH, (Math.min(drawAlpha, 60) << 24) | 0x442200, 1.0f);
                 if (litProg > 0.01f) {
-                    drawFlameIcon(context, flameX, flameY, flameW, flameH, (Math.min(drawAlpha, 235) << 24) | 0xFFA500, litProg);
+                    drawFlameIcon(extractor, flameX, flameY, flameW, flameH, (Math.min(drawAlpha, 235) << 24) | 0xFFA500, litProg);
                 }
 
                 float arrowX = startX + 38f * scale;
@@ -373,9 +396,9 @@ public class HoloHudRenderer {
                 float arrowH = 8f * scale;
                 float cookProg = session.getFurnaceCookProgress();
 
-                drawCookArrow(context, arrowX, arrowY, arrowW, arrowH, (Math.min(drawAlpha, 70) << 24) | 0x444455, 1.0f);
+                drawCookArrow(extractor, arrowX, arrowY, arrowW, arrowH, (Math.min(drawAlpha, 70) << 24) | 0x444455, 1.0f);
                 if (cookProg > 0.01f) {
-                    drawCookArrow(context, arrowX, arrowY, arrowW, arrowH, (Math.min(drawAlpha, 240) << 24) | 0x00E5FF, cookProg);
+                    drawCookArrow(extractor, arrowX, arrowY, arrowW, arrowH, (Math.min(drawAlpha, 240) << 24) | 0x00E5FF, cookProg);
                 }
 
                 float[][] slotCoords = new float[][]{
@@ -391,15 +414,12 @@ public class HoloHudRenderer {
 
                     if (sy + sSize > bottomY + 2) continue;
 
-                    Vector2f center = new Vector2f(sx + sSize / 2f, sy + sSize / 2f);
-                    
-
                     boolean isSlotHovered = isSessionHovered && (crossX >= sx && crossX < sx + sSize && crossY >= sy && crossY < sy + sSize);
                     if (isSlotHovered) {
                         bestHoveredSession = session;
                         bestHoveredSlot = i;
                         bestHoveredStack = session.getStack(i);
-                        bestHoveredSlotPos = center;
+                        bestHoveredSlotPos = new Vector2f(sx + sSize / 2f, sy + sSize / 2f);
                         bestHoveredSlotSize = sSize;
                         bestHoveredTheme = theme;
                     }
@@ -408,31 +428,31 @@ public class HoloHudRenderer {
                     boolean isEnchanted = isItemEnchanted(stack);
 
                     if (isEnchanted) {
-                        drawEnchantedSlotAura(context, sx, sy, sSize, drawAlpha, isSlotHovered, now, i);
+                        drawEnchantedSlotAura(extractor, sx, sy, sSize, drawAlpha, isSlotHovered, now, i);
                     } else {
                         int slotBg = isSlotHovered ? ((Math.min(drawAlpha, 210) << 24) | theme.primaryColor) : ((Math.min(drawAlpha, 85) << 24) | theme.slotBg);
                         int slotBorder = isSlotHovered ? ((drawAlpha << 24) | 0xFFFFFF) : ((Math.min(drawAlpha, 125) << 24) | theme.slotBorder);
 
-                        context.fill((int) sx, (int) sy, (int) (sx + sSize), (int) (sy + sSize), slotBg);
-                        drawBorder(context, (int) sx, (int) sy, (int) (sx + sSize), (int) (sy + sSize), slotBorder);
+                        extractor.fill((int) sx, (int) sy, (int) (sx + sSize), (int) (sy + sSize), slotBg);
+                        drawBorder(extractor, (int) sx, (int) sy, (int) (sx + sSize), (int) (sy + sSize), slotBorder);
                     }
 
                     if (i == 2) {
-                        drawBorder(context, (int) sx + 1, (int) sy + 1, (int) (sx + sSize) - 1, (int) (sy + sSize) - 1, (Math.min(drawAlpha, 80) << 24) | theme.primaryColor);
+                        drawBorder(extractor, (int) sx + 1, (int) sy + 1, (int) (sx + sSize) - 1, (int) (sy + sSize) - 1, (Math.min(drawAlpha, 80) << 24) | theme.primaryColor);
                     }
 
                     if (i == 1 && session.getStack(1).isEmpty()) {
-                        drawFlameIcon(context, sx + 4f * scale, sy + 4f * scale, 10f * scale, 10f * scale, (Math.min(drawAlpha, 45) << 24) | 0xFFA500, 1.0f);
+                        drawFlameIcon(extractor, sx + 4f * scale, sy + 4f * scale, 10f * scale, 10f * scale, (Math.min(drawAlpha, 45) << 24) | 0xFFA500, 1.0f);
                     }
 
                     if (!stack.isEmpty()) {
-                        context.getMatrices().pushMatrix();
-                        context.getMatrices().translate((float)(center.x), (float)(center.y));
+                        extractor.pose().pushMatrix();
+                        extractor.pose().translate(sx + sSize / 2f, sy + sSize / 2f);
 
                         float itemScale = (isSlotHovered ? 1.22f : 1.0f) * (sSize / 18f);
-                        context.getMatrices().scale((float)(itemScale), (float)(itemScale));
+                        extractor.pose().scale(itemScale, itemScale);
 
-                        context.drawItem(stack, -8, -8);
+                        extractor.item(stack, -8, -8);
                         int holoWash;
                         if (isEnchanted) {
                             float pulse = (float) Math.sin((now + i * 210) / 280.0) * 0.5f + 0.5f;
@@ -441,11 +461,10 @@ public class HoloHudRenderer {
                         } else {
                             holoWash = isSlotHovered ? 0x3DE0FFFF : 0x2280D8FF;
                         }
-                        context.fill(-8, -8, 8, 8, holoWash);
-                        context.drawItem(stack, -8, -8);
-                context.drawStackOverlay(tr, stack, -8, -8);
+                        extractor.fill(-8, -8, 8, 8, holoWash);
+                        extractor.itemDecorations(font, stack, -8, -8);
 
-                        context.getMatrices().popMatrix();
+                        extractor.pose().popMatrix();
                     }
                 }
             } else {
@@ -459,17 +478,14 @@ public class HoloHudRenderer {
                     float sx = startX + d.padX + col * (d.slotSize + d.slotGap);
                     float sy = startY + d.padTop + row * (d.slotSize + d.slotGap);
 
-                    if (sy + d.slotSize > bottomY + 2) continue; 
-
-                    Vector2f center = new Vector2f(sx + d.slotSize / 2f, sy + d.slotSize / 2f);
-                    
+                    if (sy + d.slotSize > bottomY + 2) continue;
 
                     boolean isSlotHovered = isSessionHovered && (crossX >= sx && crossX < sx + d.slotSize && crossY >= sy && crossY < sy + d.slotSize);
                     if (isSlotHovered) {
                         bestHoveredSession = session;
                         bestHoveredSlot = i;
                         bestHoveredStack = session.getStack(i);
-                        bestHoveredSlotPos = center;
+                        bestHoveredSlotPos = new Vector2f(sx + d.slotSize / 2f, sy + d.slotSize / 2f);
                         bestHoveredSlotSize = d.slotSize;
                         bestHoveredTheme = theme;
                     }
@@ -478,13 +494,13 @@ public class HoloHudRenderer {
                     boolean isEnchanted = isItemEnchanted(stack);
 
                     if (isEnchanted) {
-                        drawEnchantedSlotAura(context, sx, sy, d.slotSize, drawAlpha, isSlotHovered, now, i);
+                        drawEnchantedSlotAura(extractor, sx, sy, d.slotSize, drawAlpha, isSlotHovered, now, i);
                     } else {
                         int slotBg = isSlotHovered ? ((Math.min(drawAlpha, 210) << 24) | theme.primaryColor) : ((Math.min(drawAlpha, 85) << 24) | theme.slotBg);
                         int slotBorder = isSlotHovered ? ((drawAlpha << 24) | 0xFFFFFF) : ((Math.min(drawAlpha, 125) << 24) | theme.slotBorder);
 
-                        context.fill((int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), slotBg);
-                        drawBorder(context, (int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), slotBorder);
+                        extractor.fill((int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), slotBg);
+                        drawBorder(extractor, (int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), slotBorder);
                     }
 
                     long sortElapsed = now - session.getLastSortTime();
@@ -495,18 +511,18 @@ public class HoloHudRenderer {
                         if (diff < 0.20f) {
                             float waveStrength = 1.0f - (diff / 0.20f);
                             int waveAlpha = (int) (waveStrength * Math.min(drawAlpha, 180));
-                            context.fill((int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), (waveAlpha << 24) | 0x80D8FF);
+                            extractor.fill((int) sx, (int) sy, (int) (sx + d.slotSize), (int) (sy + d.slotSize), (waveAlpha << 24) | 0x80D8FF);
                         }
                     }
 
                     if (!stack.isEmpty()) {
-                        context.getMatrices().pushMatrix();
-                        context.getMatrices().translate((float)(center.x), (float)(center.y));
+                        extractor.pose().pushMatrix();
+                        extractor.pose().translate(sx + d.slotSize / 2f, sy + d.slotSize / 2f);
 
                         float itemScale = (isSlotHovered ? 1.22f : 1.0f) * (d.slotSize / 18f);
-                        context.getMatrices().scale((float)(itemScale), (float)(itemScale));
+                        extractor.pose().scale(itemScale, itemScale);
 
-                        context.drawItem(stack, -8, -8);
+                        extractor.item(stack, -8, -8);
                         int holoWash;
                         if (isEnchanted) {
                             float pulse = (float) Math.sin((now + i * 210) / 280.0) * 0.5f + 0.5f;
@@ -515,17 +531,16 @@ public class HoloHudRenderer {
                         } else {
                             holoWash = isSlotHovered ? 0x3DE0FFFF : 0x2280D8FF;
                         }
-                        context.fill(-8, -8, 8, 8, holoWash);
-                        context.drawItem(stack, -8, -8);
-                context.drawStackOverlay(tr, stack, -8, -8);
+                        extractor.fill(-8, -8, 8, 8, holoWash);
+                        extractor.itemDecorations(font, stack, -8, -8);
 
-                        context.getMatrices().popMatrix();
+                        extractor.pose().popMatrix();
                     }
                 }
             }
 
             if (session.isShulkerPreviewOpen()) {
-                renderShulkerPreview(context, tr, session, startX + totalW + (6f * scale), startY, scale, drawAlpha, crossX, crossY);
+                renderShulkerPreview(extractor, font, session, startX + totalW + (6f * scale), startY, scale, drawAlpha, crossX, crossY);
             }
         }
 
@@ -533,11 +548,11 @@ public class HoloHudRenderer {
             manager.setAimingAtPanel(anyPanelAim);
             manager.setHoverState(bestHoveredSession, bestHoveredSlot);
 
-            TextRenderer textRenderer = client.textRenderer;
+            Font font = client.font;
             if (previewHoverStack != null && !previewHoverStack.isEmpty() && previewHoverPos != null) {
-                renderHoloTooltip(context, client, textRenderer, previewHoverStack, null, previewHoverPos.x, previewHoverPos.y, previewHoverSize, sw, sh);
+                renderHoloTooltip(extractor, client, font, previewHoverStack, null, previewHoverPos.x, previewHoverPos.y, previewHoverSize, sw, sh);
             } else if (bestHoveredSlot != -1 && !bestHoveredStack.isEmpty() && bestHoveredSlotPos != null) {
-                renderHoloTooltip(context, client, textRenderer, bestHoveredStack, bestHoveredTheme, bestHoveredSlotPos.x, bestHoveredSlotPos.y, bestHoveredSlotSize, sw, sh);
+                renderHoloTooltip(extractor, client, font, bestHoveredStack, bestHoveredTheme, bestHoveredSlotPos.x, bestHoveredSlotPos.y, bestHoveredSlotSize, sw, sh);
             }
         } else {
             manager.setAimingAtPanel(false);
@@ -545,51 +560,42 @@ public class HoloHudRenderer {
         }
     }
 
-    private static boolean anyHovered(List<SessionRenderData> list) {
-        for (SessionRenderData d : list) {
-            if (d.isHovered) return true;
-        }
-        return false;
-    }
-
-    
-
-    private static void drawConnectedTail(DrawContext context, float bx1, float bx2, float by, float tx, float ty, int fillColor, int borderColor, int beamColor) {
+    private static void drawConnectedTail(GuiGraphicsExtractor extractor, float bx1, float bx2, float by, float tx, float ty, int fillColor, int borderColor, int beamColor) {
         int startY = (int) by;
         int endY = (int) ty;
         if (startY >= endY) return;
 
         for (int y = startY; y <= endY; y++) {
             float t = (float) (y - startY) / (float) (endY - startY);
-            float curX1 = MathHelper.lerp(t, bx1, tx);
-            float curX2 = MathHelper.lerp(t, bx2, tx);
+            float curX1 = Mth.lerp(t, bx1, tx);
+            float curX2 = Mth.lerp(t, bx2, tx);
 
             if (curX2 >= curX1) {
-                context.fill((int) curX1, y, (int) curX2 + 1, y + 1, fillColor);
-                context.fill((int) curX1, y, (int) curX1 + 1, y + 1, borderColor);
-                context.fill((int) curX2, y, (int) curX2 + 1, y + 1, borderColor);
+                extractor.fill((int) curX1, y, (int) curX2 + 1, y + 1, fillColor);
+                extractor.fill((int) curX1, y, (int) curX1 + 1, y + 1, borderColor);
+                extractor.fill((int) curX2, y, (int) curX2 + 1, y + 1, borderColor);
             }
         }
 
-        context.fill((int) tx, startY, (int) tx + 1, endY, beamColor);
+        extractor.fill((int) tx, startY, (int) tx + 1, endY, beamColor);
     }
 
-    private static void drawBubbleBorders(DrawContext context, int x1, int y1, int x2, int y2, int bx1, int bx2, int color) {
-        context.fill(x1, y1, x2, y1 + 1, color);
-        context.fill(x1, y1, x1 + 1, y2, color);
-        context.fill(x2 - 1, y1, x2, y2, color);
+    private static void drawBubbleBorders(GuiGraphicsExtractor extractor, int x1, int y1, int x2, int y2, int bx1, int bx2, int color) {
+        extractor.fill(x1, y1, x2, y1 + 1, color);
+        extractor.fill(x1, y1, x1 + 1, y2, color);
+        extractor.fill(x2 - 1, y1, x2, y2, color);
 
         int g1 = Math.max(x1, bx1);
         int g2 = Math.min(x2, bx2);
         if (g1 > x1) {
-            context.fill(x1, y2 - 1, g1, y2, color);
+            extractor.fill(x1, y2 - 1, g1, y2, color);
         }
         if (g2 < x2) {
-            context.fill(g2, y2 - 1, x2, y2, color);
+            extractor.fill(g2, y2 - 1, x2, y2, color);
         }
     }
 
-    private static void renderShulkerPreview(DrawContext context, TextRenderer tr, HoloSession session, float px, float py, float scale, int alpha, float crossX, float crossY) {
+    private static void renderShulkerPreview(GuiGraphicsExtractor extractor, Font font, HoloSession session, float px, float py, float scale, int alpha, float crossX, float crossY) {
         int cols = 9;
         int rows = 3;
         float slotSize = 16f * scale;
@@ -603,16 +609,16 @@ public class HoloHudRenderer {
 
         int bgColor = (Math.min(alpha, 190) << 24) | 0x051E33;
         int borderColor = (Math.min(alpha, 240) << 24) | 0x9933FF;
-        context.fill((int) px, (int) py, (int) (px + pW), (int) (py + pH), bgColor);
-        drawBorder(context, (int) px, (int) py, (int) (px + pW), (int) (py + pH), borderColor);
+        extractor.fill((int) px, (int) py, (int) (px + pW), (int) (py + pH), bgColor);
+        drawBorder(extractor, (int) px, (int) py, (int) (px + pW), (int) (py + pH), borderColor);
 
         String shulkerTitle = session.getPreviewTitle();
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate((float)(px + 4f * scale), (float)(py + 2.5f * scale));
+        extractor.pose().pushMatrix();
+        extractor.pose().translate(px + 4f * scale, py + 2.5f * scale);
         float sFontScale = 0.75f * scale;
-        context.getMatrices().scale((float)(sFontScale), (float)(sFontScale));
-        context.drawText(tr, "◆ " + shulkerTitle, 0, 0, (alpha << 24) | 0xD8B4FE, false);
-        context.getMatrices().popMatrix();
+        extractor.pose().scale(sFontScale, sFontScale);
+        extractor.text(font, "◆ " + shulkerTitle, 0, 0, (alpha << 24) | 0xD8B4FE, false);
+        extractor.pose().popMatrix();
 
         var stacks = session.getPreviewStacks();
         if (stacks == null) return;
@@ -624,8 +630,6 @@ public class HoloHudRenderer {
             float sx = px + pad + col * (slotSize + slotGap);
             float sy = py + (10f * scale) + pad + row * (slotSize + slotGap);
 
-            
-
             boolean isHovered = (crossX >= sx && crossX < sx + slotSize && crossY >= sy && crossY < sy + slotSize);
 
             ItemStack stack = (i < stacks.size()) ? stacks.get(i) : ItemStack.EMPTY;
@@ -633,28 +637,29 @@ public class HoloHudRenderer {
 
             if (isHovered && !stack.isEmpty()) {
                 previewHoverStack = stack;
+                previewHoverSlot = i;
                 previewHoverPos = new Vector2f(sx + slotSize / 2f, sy + slotSize / 2f);
                 previewHoverSize = slotSize;
             }
 
             if (isEnchanted) {
-                drawEnchantedSlotAura(context, sx, sy, slotSize, alpha, isHovered, System.currentTimeMillis(), i);
+                drawEnchantedSlotAura(extractor, sx, sy, slotSize, alpha, isHovered, System.currentTimeMillis(), i);
             } else {
                 int sBg = isHovered ? ((Math.min(alpha, 210) << 24) | 0x7E22CE) : ((Math.min(alpha, 80) << 24) | 0x2E1065);
                 int sBorder = isHovered ? ((alpha << 24) | 0xF3E8FF) : ((Math.min(alpha, 120) << 24) | 0xA855F7);
-                context.fill((int) sx, (int) sy, (int) (sx + slotSize), (int) (sy + slotSize), sBg);
-                drawBorder(context, (int) sx, (int) sy, (int) (sx + slotSize), (int) (sy + slotSize), sBorder);
+                extractor.fill((int) sx, (int) sy, (int) (sx + slotSize), (int) (sy + slotSize), sBg);
+                drawBorder(extractor, (int) sx, (int) sy, (int) (sx + slotSize), (int) (sy + slotSize), sBorder);
             }
 
             if (!stack.isEmpty()) {
-                context.getMatrices().pushMatrix();
+                extractor.pose().pushMatrix();
                 float itemCenterX = sx + slotSize / 2f;
                 float itemCenterY = sy + slotSize / 2f;
-                context.getMatrices().translate((float)(itemCenterX), (float)(itemCenterY));
+                extractor.pose().translate(itemCenterX, itemCenterY);
                 float itemScale = (isHovered ? 1.20f : 1.0f) * (slotSize / 18f);
-                context.getMatrices().scale((float)(itemScale), (float)(itemScale));
+                extractor.pose().scale(itemScale, itemScale);
 
-                context.drawItem(stack, -8, -8);
+                extractor.item(stack, -8, -8);
                 int holoWash;
                 if (isEnchanted) {
                     float pulse = (float) Math.sin((System.currentTimeMillis() + i * 210) / 280.0) * 0.5f + 0.5f;
@@ -663,28 +668,27 @@ public class HoloHudRenderer {
                 } else {
                     holoWash = isHovered ? 0x3DE0FFFF : 0x2280D8FF;
                 }
-                context.fill(-8, -8, 8, 8, holoWash);
-                context.drawItem(stack, -8, -8);
-                context.drawStackOverlay(tr, stack, -8, -8);
-                context.getMatrices().popMatrix();
+                extractor.fill(-8, -8, 8, 8, holoWash);
+                extractor.itemDecorations(font, stack, -8, -8);
+                extractor.pose().popMatrix();
             }
         }
     }
 
     public static boolean isItemEnchanted(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
-        return stack.hasGlint() || stack.hasEnchantments();
+        return stack.hasFoil() || stack.isEnchanted();
     }
 
-    private static void drawEnchantedSlotAura(DrawContext context, float sx, float sy, float size, int drawAlpha, boolean isHovered, long now, int slotIndex) {
+    private static void drawEnchantedSlotAura(GuiGraphicsExtractor extractor, float sx, float sy, float size, int drawAlpha, boolean isHovered, long now, int slotIndex) {
         float pulse = (float) Math.sin((now + slotIndex * 210) / 280.0) * 0.5f + 0.5f;
         int auraAlpha = (int) (Math.min(drawAlpha, 150) * (0.50f + 0.50f * pulse));
-        int auraColor = (auraAlpha << 24) | 0x6B21A8; 
-        context.fill((int) sx, (int) sy, (int) (sx + size), (int) (sy + size), auraColor);
+        int auraColor = (auraAlpha << 24) | 0x6B21A8;
+        extractor.fill((int) sx, (int) sy, (int) (sx + size), (int) (sy + size), auraColor);
 
         int shimmerBorder = isHovered ? ((drawAlpha << 24) | 0xFFFFFF) : ((Math.min(drawAlpha, 215) << 24) | 0xC084FC);
-        drawBorder(context, (int) sx, (int) sy, (int) (sx + size), (int) (sy + size), shimmerBorder);
-        drawBorder(context, (int) sx + 1, (int) sy + 1, (int) (sx + size) - 1, (int) (sy + size) - 1, (Math.min(drawAlpha, 95) << 24) | 0xE9D5FF);
+        drawBorder(extractor, (int) sx, (int) sy, (int) (sx + size), (int) (sy + size), shimmerBorder);
+        drawBorder(extractor, (int) sx + 1, (int) sy + 1, (int) (sx + size) - 1, (int) (sy + size) - 1, (Math.min(drawAlpha, 95) << 24) | 0xE9D5FF);
 
         for (int p = 0; p < 2; p++) {
             float pPhase = ((now + slotIndex * 230 + p * 410) % 1100) / 1100f;
@@ -693,46 +697,47 @@ public class HoloHudRenderer {
                 float px = sx + 2f + ((float) ((slotIndex * 7 + p * 11) % 11) / 11f) * (size - 4f);
                 float py = sy + (size - 2f) - pPhase * (size - 3f);
                 int sparkColor = ((int) (sparkAlphaF * Math.min(drawAlpha, 240)) << 24) | 0xFFFFFF;
-                context.fill((int) px, (int) py, (int) px + 1, (int) py + 1, sparkColor);
+                extractor.fill((int) px, (int) py, (int) px + 1, (int) py + 1, sparkColor);
                 if (sparkAlphaF > 0.65f) {
                     int crossColor = ((int) (sparkAlphaF * 0.5f * Math.min(drawAlpha, 240)) << 24) | 0xE9D5FF;
-                    context.fill((int) px - 1, (int) py, (int) px, (int) py + 1, crossColor);
-                    context.fill((int) px + 1, (int) py, (int) px + 2, (int) py + 1, crossColor);
-                    context.fill((int) px, (int) py - 1, (int) px + 1, (int) py, crossColor);
-                    context.fill((int) px, (int) py + 1, (int) px + 1, (int) py + 2, crossColor);
+                    extractor.fill((int) px - 1, (int) py, (int) px, (int) py + 1, crossColor);
+                    extractor.fill((int) px + 1, (int) py, (int) px + 2, (int) py + 1, crossColor);
+                    extractor.fill((int) px, (int) py - 1, (int) px + 1, (int) py, crossColor);
+                    extractor.fill((int) px, (int) py + 1, (int) px + 1, (int) py + 2, crossColor);
                 }
             }
         }
     }
 
-    private static void renderFlyingItems(DrawContext context, MinecraftClient client) {
+    private static void renderFlyingItems(GuiGraphicsExtractor extractor, Minecraft client) {
         for (FlyingItem item : HoloChestManager.getInstance().getFlyingItems()) {
             if (item.isFinished()) continue;
 
-            Vector2f cur = item.getCurrentScreenPos();
+            float curX = item.getScreenX();
+            float curY = item.getScreenY();
             float p = item.getProgress();
 
             int trailColor = (180 << 24) | 0x00E5FF;
-            context.fill((int) cur.x - 2, (int) cur.y - 2, (int) cur.x + 2, (int) cur.y + 2, trailColor);
+            extractor.fill((int) curX - 2, (int) curY - 2, (int) curX + 2, (int) curY + 2, trailColor);
 
-            context.getMatrices().pushMatrix();
-            context.getMatrices().translate((float)(cur.x), (float)(cur.y));
+            extractor.pose().pushMatrix();
+            extractor.pose().translate(curX, curY);
             float flightScale = 1.0f + (float) Math.sin(p * Math.PI) * 0.35f;
-            context.getMatrices().scale((float)(flightScale), (float)(flightScale));
+            extractor.pose().scale(flightScale, flightScale);
 
-            context.drawItem(item.getStack(), -8, -8);
-            context.getMatrices().popMatrix();
+            extractor.item(item.getStack(), -8, -8);
+            extractor.pose().popMatrix();
         }
     }
 
-    public static void drawBorder(DrawContext context, int x1, int y1, int x2, int y2, int color) {
-        context.fill(x1, y1, x2, y1 + 1, color);
-        context.fill(x1, y2 - 1, x2, y2, color);
-        context.fill(x1, y1, x1 + 1, y2, color);
-        context.fill(x2 - 1, y1, x2, y2, color);
+    public static void drawBorder(GuiGraphicsExtractor extractor, int x1, int y1, int x2, int y2, int color) {
+        extractor.fill(x1, y1, x2, y1 + 1, color);
+        extractor.fill(x1, y2 - 1, x2, y2, color);
+        extractor.fill(x1, y1, x1 + 1, y2, color);
+        extractor.fill(x2 - 1, y1, x2, y2, color);
     }
 
-    private static void drawFlameIcon(DrawContext context, float x, float y, float w, float h, int color, float fillProgress) {
+    private static void drawFlameIcon(GuiGraphicsExtractor extractor, float x, float y, float w, float h, int color, float fillProgress) {
         float fillH = h * Math.clamp(fillProgress, 0f, 1f);
         float startY = y + (h - fillH);
         int ix = (int) x;
@@ -741,12 +746,12 @@ public class HoloHudRenderer {
         int ih = (int) fillH;
         if (ih <= 0) return;
 
-        context.fill(ix + 3, iy, ix + iw - 3, iy + ih, color);
-        context.fill(ix + 1, iy + 2, ix + iw - 1, iy + ih, color);
-        context.fill(ix, iy + 4, ix + iw, iy + ih, color);
+        extractor.fill(ix + 3, iy, ix + iw - 3, iy + ih, color);
+        extractor.fill(ix + 1, iy + 2, ix + iw - 1, iy + ih, color);
+        extractor.fill(ix, iy + 4, ix + iw, iy + ih, color);
     }
 
-    private static void drawCookArrow(DrawContext context, float x, float y, float w, float h, int color, float fillProgress) {
+    private static void drawCookArrow(GuiGraphicsExtractor extractor, float x, float y, float w, float h, int color, float fillProgress) {
         float fillW = w * Math.clamp(fillProgress, 0f, 1f);
         int ix = (int) x;
         int iy = (int) y;
@@ -755,33 +760,39 @@ public class HoloHudRenderer {
         if (iw <= 0) return;
 
         int midY = iy + ih / 2;
-        context.fill(ix, midY - 2, ix + iw, midY + 2, color);
+        extractor.fill(ix, midY - 2, ix + iw, midY + 2, color);
         if (fillProgress >= 0.7f) {
             float headP = (fillProgress - 0.7f) / 0.3f;
             int headSize = (int) (3 * headP);
             for (int d = 0; d <= headSize; d++) {
-                context.fill(ix + iw - d, midY - d - 1, ix + iw - d + 1, midY + d + 2, color);
+                extractor.fill(ix + iw - d, midY - d - 1, ix + iw - d + 1, midY + d + 2, color);
             }
         }
     }
 
-    private static void renderHoloTooltip(DrawContext context, MinecraftClient client, TextRenderer tr, ItemStack stack, HoloTheme theme, float anchorX, float anchorY, float slotSize, int sw, int sh) {
+    private static void renderHoloTooltip(GuiGraphicsExtractor extractor, Minecraft client, Font tr, ItemStack stack, HoloTheme theme, float anchorX, float anchorY, float slotSize, int sw, int sh) {
         if (stack == null || stack.isEmpty()) return;
 
-        List<net.minecraft.text.Text> lines;
-        try {
-            lines = net.minecraft.client.gui.screen.Screen.getTooltipFromItem(client, stack);
-        } catch (Throwable t) {
-            lines = List.of(stack.getName());
-        }
+        List<Component> lines;
+        if (ItemStack.matches(stack, lastTooltipStack) && cachedTooltipLines != null) {
+            lines = cachedTooltipLines;
+        } else {
+            try {
+                lines = net.minecraft.client.gui.screens.Screen.getTooltipFromItem(client, stack);
+            } catch (Throwable t) {
+                lines = List.of(stack.getHoverName());
+            }
 
-        if (lines == null || lines.isEmpty()) {
-            lines = List.of(stack.getName());
+            if (lines == null || lines.isEmpty()) {
+                lines = List.of(stack.getHoverName());
+            }
+            lastTooltipStack = stack.copy();
+            cachedTooltipLines = lines;
         }
 
         int maxTextW = 0;
-        for (net.minecraft.text.Text line : lines) {
-            int w = tr.getWidth(line);
+        for (Component line : lines) {
+            int w = tr.width(line);
             if (w > maxTextW) {
                 maxTextW = w;
             }
@@ -815,58 +826,51 @@ public class HoloHudRenderer {
         boolean isEnchanted = isItemEnchanted(stack);
         float pulse = (float) Math.sin(now / 240.0) * 0.5f + 0.5f;
 
-        context.getMatrices().pushMatrix();
-        
-        context.getMatrices().pushMatrix();
-        
         int primaryColor = (theme != null) ? theme.primaryColor : 0x00E5FF;
 
         int outerGlow = isEnchanted ? (0x20000000 | 0xC084FC) : (0x18000000 | primaryColor);
-        context.fill(tipX - 1, tipY - 1, tipX + boxW + 1, tipY + boxH + 1, outerGlow);
+        extractor.fill(tipX - 1, tipY - 1, tipX + boxW + 1, tipY + boxH + 1, outerGlow);
 
         int bgTop = isEnchanted ? 0xF4160A2A : (0xF4000000 | (theme != null ? theme.bgTopColor : 0x051322));
         int bgBot = isEnchanted ? 0xF60A031B : (0xF6000000 | (theme != null ? theme.bgBotColor : 0x020813));
-        context.fillGradient(tipX, tipY, tipX + boxW, tipY + boxH, bgTop, bgBot);
+        extractor.fillGradient(tipX, tipY, tipX + boxW, tipY + boxH, bgTop, bgBot);
 
         int scanColor = isEnchanted ? 0x12C084FC : (0x12000000 | primaryColor);
         for (int y = tipY + 2; y < tipY + boxH - 1; y += 3) {
-            context.fill(tipX + 1, y, tipX + boxW - 1, y + 1, scanColor);
+            extractor.fill(tipX + 1, y, tipX + boxW - 1, y + 1, scanColor);
         }
 
         float sweep = (now % 2200) / 2200f;
         int sweepY = (int) (tipY + sweep * boxH);
         if (sweepY < tipY + boxH - 1) {
-            context.fill(tipX + 1, sweepY, tipX + boxW - 1, sweepY + 1, 0x1AFFFFFF);
+            extractor.fill(tipX + 1, sweepY, tipX + boxW - 1, sweepY + 1, 0x1AFFFFFF);
         }
 
         int borderColor = isEnchanted ? (((int) (205 + 50 * pulse) << 24) | 0xC084FC) : (0xEE000000 | primaryColor);
-        drawBorder(context, tipX, tipY, tipX + boxW, tipY + boxH, borderColor);
-        drawBorder(context, tipX + 1, tipY + 1, tipX + boxW - 1, tipY + boxH - 1, 0x22FFFFFF);
+        drawBorder(extractor, tipX, tipY, tipX + boxW, tipY + boxH, borderColor);
+        drawBorder(extractor, tipX + 1, tipY + 1, tipX + boxW - 1, tipY + boxH - 1, 0x22FFFFFF);
 
         int cornerColor = 0xFFFFFFFF;
-        context.fill(tipX, tipY, tipX + 3, tipY + 1, cornerColor);
-        context.fill(tipX, tipY, tipX + 1, tipY + 3, cornerColor);
-        context.fill(tipX + boxW - 3, tipY, tipX + boxW, tipY + 1, cornerColor);
-        context.fill(tipX + boxW - 1, tipY, tipX + boxW, tipY + 3, cornerColor);
-        context.fill(tipX, tipY + boxH - 1, tipX + 3, tipY + boxH, cornerColor);
-        context.fill(tipX, tipY + boxH - 3, tipX + 1, tipY + boxH, cornerColor);
-        context.fill(tipX + boxW - 3, tipY + boxH - 1, tipX + boxW, tipY + boxH, cornerColor);
-        context.fill(tipX + boxW - 1, tipY + boxH - 3, tipX + boxW, tipY + boxH, cornerColor);
+        extractor.fill(tipX, tipY, tipX + 3, tipY + 1, cornerColor);
+        extractor.fill(tipX, tipY, tipX + 1, tipY + 3, cornerColor);
+        extractor.fill(tipX + boxW - 3, tipY, tipX + boxW, tipY + 1, cornerColor);
+        extractor.fill(tipX + boxW - 1, tipY, tipX + boxW, tipY + 3, cornerColor);
+        extractor.fill(tipX, tipY + boxH - 1, tipX + 3, tipY + boxH, cornerColor);
+        extractor.fill(tipX, tipY + boxH - 3, tipX + 1, tipY + boxH, cornerColor);
+        extractor.fill(tipX + boxW - 3, tipY + boxH - 1, tipX + boxW, tipY + boxH, cornerColor);
+        extractor.fill(tipX + boxW - 1, tipY + boxH - 3, tipX + boxW, tipY + boxH, cornerColor);
 
         if (lines.size() > 1) {
             int sepY = tipY + padY + 10;
             int sepColor = isEnchanted ? (0x50000000 | 0xC084FC) : (0x40000000 | primaryColor);
-            context.fill(tipX + 4, sepY, tipX + boxW - 4, sepY + 1, sepColor);
+            extractor.fill(tipX + 4, sepY, tipX + boxW - 4, sepY + 1, sepColor);
         }
 
         for (int l = 0; l < lines.size(); l++) {
-            net.minecraft.text.Text line = lines.get(l);
+            Component line = lines.get(l);
             int yOffset = (l == 0) ? 0 : 2;
             int lineY = tipY + padY + l * lineSpacing + yOffset;
-            context.drawTextWithShadow(tr, line, tipX + padX, lineY, 0xFFFFFFFF);
+            extractor.text(tr, line, tipX + padX, lineY, 0xFFFFFFFF, true);
         }
-        context.getMatrices().popMatrix();
-        context.getMatrices().popMatrix();
     }
-
 }
