@@ -2,36 +2,37 @@ package com.holochest.hologram;
 
 import com.holochest.render.HoloHudRenderer;
 import com.holochest.sound.HoloSoundHelper;
-import net.minecraft.block.*;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.DyeColor;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Vector2f;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -136,19 +137,19 @@ public class HoloChestManager {
     }
 
     public void toggle() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || client.world == null) return;
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
+        if (player == null || client.level == null) return;
 
-        BlockHitResult hit = raycastContainer(player, client);
-        if (hit != null && hit.getType() == HitResult.Type.BLOCK) {
+        net.minecraft.world.phys.BlockHitResult hit = raycastContainer(player, client);
+        if (hit != null && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
             BlockPos pos = hit.getBlockPos();
-            double distSq = player.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            double distSq = player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
             if (distSq <= 40.0 * 40.0) {
-                BlockState state = client.world.getBlockState(pos);
+                BlockState state = client.level.getBlockState(pos);
 
                 if (isContainerBlock(state)) {
-                BlockPos canonPos = getCanonicalChestPos(client.world, pos, state);
+                BlockPos canonPos = getCanonicalChestPos(client.level, pos, state);
                 HoloSession current = activeSessions.get(canonPos);
                 if (current != null && !current.isClosing()) {
                     float curProg = current.getOpenProgress();
@@ -169,7 +170,7 @@ public class HoloChestManager {
 
     public static boolean isContainerBlock(BlockState state) {
         Block b = state.getBlock();
-        return b instanceof AbstractChestBlock
+        return b instanceof ChestBlock
                 || b instanceof BarrelBlock
                 || b instanceof ShulkerBoxBlock
                 || b instanceof HopperBlock
@@ -178,35 +179,35 @@ public class HoloChestManager {
                 || b instanceof DropperBlock
                 || b instanceof CrafterBlock
                 || b instanceof BrewingStandBlock
-                || b instanceof ChiseledBookshelfBlock
+                || b instanceof ChiseledBookShelfBlock
                 || b instanceof EnderChestBlock;
     }
 
-    private BlockHitResult raycastContainer(ClientPlayerEntity player, MinecraftClient client) {
-        Vec3d eyePos = player.getEyePos();
-        Vec3d rot = player.getRotationVec(1.0f);
-        Vec3d reachEnd = eyePos.add(rot.multiply(40.0));
+    private BlockHitResult raycastContainer(LocalPlayer player, Minecraft client) {
+        Vec3 eyePos = player.getEyePosition();
+        Vec3 rot = player.getViewVector(1.0f);
+        Vec3 reachEnd = eyePos.add(rot.scale(40.0));
 
-        return client.world.raycast(new RaycastContext(
+        return client.level.clip(new ClipContext(
                 eyePos,
                 reachEnd,
-                RaycastContext.ShapeType.OUTLINE,
-                RaycastContext.FluidHandling.NONE,
+                ClipContext.Block.OUTLINE,
+                ClipContext.Fluid.NONE,
                 player
         ));
     }
 
-    public static BlockPos getDoubleChestPartner(net.minecraft.world.World world, BlockPos pos, BlockState state) {
-        if (state.getBlock() instanceof ChestBlock && state.contains(ChestBlock.CHEST_TYPE) && state.contains(ChestBlock.FACING)) {
-            ChestType type = state.get(ChestBlock.CHEST_TYPE);
+    public static BlockPos getDoubleChestPartner(Level world, BlockPos pos, BlockState state) {
+        if (state.getBlock() instanceof ChestBlock && state.hasProperty(BlockStateProperties.CHEST_TYPE) && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            ChestType type = state.getValue(BlockStateProperties.CHEST_TYPE);
             if (type != ChestType.SINGLE) {
-                Direction facing = state.get(ChestBlock.FACING);
-                Direction partnerDir = (type == ChestType.LEFT) ? facing.rotateYClockwise() : facing.rotateYCounterclockwise();
-                BlockPos partnerPos = pos.offset(partnerDir);
+                Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
+                Direction partnerDir = (type == ChestType.LEFT) ? facing.getClockWise() : facing.getCounterClockWise();
+                BlockPos partnerPos = pos.relative(partnerDir);
                 BlockState partnerState = world.getBlockState(partnerPos);
-                if (partnerState.getBlock() == state.getBlock() && partnerState.contains(ChestBlock.CHEST_TYPE)) {
-                    ChestType partnerType = partnerState.get(ChestBlock.CHEST_TYPE);
-                    if (partnerType != ChestType.SINGLE && partnerType != type && partnerState.get(ChestBlock.FACING) == facing) {
+                if (partnerState.getBlock() == state.getBlock() && partnerState.hasProperty(BlockStateProperties.CHEST_TYPE)) {
+                    ChestType partnerType = partnerState.getValue(BlockStateProperties.CHEST_TYPE);
+                    if (partnerType != ChestType.SINGLE && partnerType != type && partnerState.getValue(BlockStateProperties.HORIZONTAL_FACING) == facing) {
                         return partnerPos;
                     }
                 }
@@ -215,16 +216,16 @@ public class HoloChestManager {
         return null;
     }
 
-    public static BlockPos getCanonicalChestPos(net.minecraft.world.World world, BlockPos pos, BlockState state) {
-        if (state.getBlock() instanceof ChestBlock && state.contains(ChestBlock.CHEST_TYPE) && state.contains(ChestBlock.FACING)) {
-            ChestType type = state.get(ChestBlock.CHEST_TYPE);
+    public static BlockPos getCanonicalChestPos(Level world, BlockPos pos, BlockState state) {
+        if (state.getBlock() instanceof ChestBlock && state.hasProperty(BlockStateProperties.CHEST_TYPE) && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            ChestType type = state.getValue(BlockStateProperties.CHEST_TYPE);
             if (type == ChestType.RIGHT) {
-                Direction facing = state.get(ChestBlock.FACING);
-                Direction partnerDir = facing.rotateYCounterclockwise();
-                BlockPos partnerPos = pos.offset(partnerDir);
+                Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
+                Direction partnerDir = facing.getCounterClockWise();
+                BlockPos partnerPos = pos.relative(partnerDir);
                 BlockState partnerState = world.getBlockState(partnerPos);
-                if (partnerState.getBlock() == state.getBlock() && partnerState.contains(ChestBlock.CHEST_TYPE)) {
-                    if (partnerState.get(ChestBlock.CHEST_TYPE) == ChestType.LEFT && partnerState.get(ChestBlock.FACING) == facing) {
+                if (partnerState.getBlock() == state.getBlock() && partnerState.hasProperty(BlockStateProperties.CHEST_TYPE)) {
+                    if (partnerState.getValue(BlockStateProperties.CHEST_TYPE) == ChestType.LEFT && partnerState.getValue(BlockStateProperties.HORIZONTAL_FACING) == facing) {
                         return partnerPos;
                     }
                 }
@@ -235,30 +236,26 @@ public class HoloChestManager {
 
     public static SoundEvent getContainerOpenSound(BlockState state) {
         Block b = state.getBlock();
-        if (b instanceof ShulkerBoxBlock) return SoundEvents.BLOCK_SHULKER_BOX_OPEN;
-        if (b instanceof BarrelBlock) return SoundEvents.BLOCK_BARREL_OPEN;
-        if (b instanceof EnderChestBlock) return SoundEvents.BLOCK_ENDER_CHEST_OPEN;
+        if (b instanceof ShulkerBoxBlock) return SoundEvents.SHULKER_BOX_OPEN;
+        if (b instanceof BarrelBlock) return SoundEvents.BARREL_OPEN;
+        if (b instanceof EnderChestBlock) return SoundEvents.ENDER_CHEST_OPEN;
         if (b instanceof HopperBlock || b instanceof DispenserBlock || b instanceof DropperBlock || b instanceof CrafterBlock) {
-            return SoundEvents.BLOCK_IRON_TRAPDOOR_OPEN;
+            return SoundEvents.IRON_TRAPDOOR_OPEN;
         }
-        if (b instanceof AbstractFurnaceBlock) return SoundEvents.BLOCK_FURNACE_FIRE_CRACKLE;
-        return SoundEvents.BLOCK_CHEST_OPEN;
+        if (b instanceof AbstractFurnaceBlock) return SoundEvents.FURNACE_FIRE_CRACKLE;
+        return SoundEvents.CHEST_OPEN;
     }
 
     public static SoundEvent getContainerCloseSound(BlockState state) {
         Block b = state.getBlock();
-        if (b instanceof ShulkerBoxBlock) return SoundEvents.BLOCK_SHULKER_BOX_CLOSE;
-        if (b instanceof BarrelBlock) return SoundEvents.BLOCK_BARREL_CLOSE;
-        if (b instanceof EnderChestBlock) return SoundEvents.BLOCK_ENDER_CHEST_CLOSE;
+        if (b instanceof ShulkerBoxBlock) return SoundEvents.SHULKER_BOX_CLOSE;
+        if (b instanceof BarrelBlock) return SoundEvents.BARREL_CLOSE;
+        if (b instanceof EnderChestBlock) return SoundEvents.ENDER_CHEST_CLOSE;
         if (b instanceof HopperBlock || b instanceof DispenserBlock || b instanceof DropperBlock || b instanceof CrafterBlock) {
-            return SoundEvents.BLOCK_IRON_TRAPDOOR_CLOSE;
+            return SoundEvents.IRON_TRAPDOOR_CLOSE;
         }
-        if (b instanceof AbstractFurnaceBlock) return SoundEvents.BLOCK_IRON_TRAPDOOR_CLOSE;
-        return SoundEvents.BLOCK_CHEST_CLOSE;
-    }
-
-    public static void playContainerSound(net.minecraft.world.World world, BlockPos pos, SoundEvent sound) {
-
+        if (b instanceof AbstractFurnaceBlock) return SoundEvents.IRON_TRAPDOOR_CLOSE;
+        return SoundEvents.CHEST_CLOSE;
     }
 
     public static int getContainerTitleColor(BlockState state) {
@@ -312,27 +309,27 @@ public class HoloChestManager {
     }
 
     public void openContainer(BlockPos pos, BlockState state) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) return;
 
-        BlockPos canonPos = getCanonicalChestPos(client.world, pos, state);
+        BlockPos canonPos = getCanonicalChestPos(client.level, pos, state);
 
         for (HoloSession s : activeSessions.values()) {
             startClosingSession(s);
         }
 
-        BlockState canonState = client.world.getBlockState(canonPos);
-        BlockPos partnerPos = getDoubleChestPartner(client.world, canonPos, canonState);
+        BlockState canonState = client.level.getBlockState(canonPos);
+        BlockPos partnerPos = getDoubleChestPartner(client.level, canonPos, canonState);
 
-        Text title = canonState.getBlock().getName();
+        Component title = canonState.getBlock().getName();
         int titleColor = getContainerTitleColor(canonState);
         SoundEvent openSound = getContainerOpenSound(canonState);
         SoundEvent closeSound = getContainerCloseSound(canonState);
 
         int initialSize = 27;
         Block b = canonState.getBlock();
-        if (b instanceof ChestBlock && canonState.contains(ChestBlock.CHEST_TYPE)) {
-            ChestType type = canonState.get(ChestBlock.CHEST_TYPE);
+        if (b instanceof ChestBlock && canonState.hasProperty(BlockStateProperties.CHEST_TYPE)) {
+            ChestType type = canonState.getValue(BlockStateProperties.CHEST_TYPE);
             initialSize = (type != ChestType.SINGLE) ? 54 : 27;
         } else if (b instanceof HopperBlock) {
             initialSize = 5;
@@ -342,7 +339,7 @@ public class HoloChestManager {
             initialSize = 9;
         } else if (b instanceof BrewingStandBlock) {
             initialSize = 5;
-        } else if (b instanceof ChiseledBookshelfBlock) {
+        } else if (b instanceof ChiseledBookShelfBlock) {
             initialSize = 6;
         }
 
@@ -353,22 +350,22 @@ public class HoloChestManager {
         activeSessions.put(canonPos, session);
 
         if (b instanceof EnderChestBlock && client.player != null) {
-            Inventory clientEnder = client.player.getEnderChestInventory();
-            for (int i = 0; i < clientEnder.size() && i < session.getCachedStacks().size(); i++) {
-                session.setStack(i, clientEnder.getStack(i).copy());
+            Container clientEnder = client.player.getEnderChestInventory();
+            for (int i = 0; i < clientEnder.getContainerSize() && i < session.getCachedStacks().size(); i++) {
+                session.setStack(i, clientEnder.getItem(i).copy());
             }
         }
 
-        if (b instanceof BarrelBlock && state.contains(BarrelBlock.OPEN)) {
-            client.world.setBlockState(canonPos, state.with(BarrelBlock.OPEN, true), 3);
-            MinecraftServer server = client.getServer();
+        if (b instanceof BarrelBlock && state.hasProperty(BlockStateProperties.OPEN)) {
+            client.level.setBlock(canonPos, state.setValue(BlockStateProperties.OPEN, true), 3);
+            MinecraftServer server = client.getSingleplayerServer();
             if (server != null) {
                 server.execute(() -> {
-                    ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                    ServerLevel sWorld = server.getLevel(client.level.dimension());
                     if (sWorld != null) {
                         BlockState sState = sWorld.getBlockState(canonPos);
-                        if (sState.getBlock() instanceof BarrelBlock && sState.contains(BarrelBlock.OPEN)) {
-                            sWorld.setBlockState(canonPos, sState.with(BarrelBlock.OPEN, true), 3);
+                        if (sState.getBlock() instanceof BarrelBlock && sState.hasProperty(BlockStateProperties.OPEN)) {
+                            sWorld.setBlock(canonPos, sState.setValue(BlockStateProperties.OPEN, true), 3);
                         }
                     }
                 });
@@ -386,28 +383,32 @@ public class HoloChestManager {
     public void recalculateSessionLayout() {}
 
     public void syncSessionFromServer(HoloSession session) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        MinecraftServer server = client.getServer();
-        if (server != null && client.world != null && client.player != null) {
+        Minecraft client = Minecraft.getInstance();
+        MinecraftServer server = client.getSingleplayerServer();
+
+        if (server != null && client.level != null && client.player != null) {
             BlockPos targetPos = session.getPos();
-            java.util.UUID playerUuid = client.player.getUuid();
+            java.util.UUID playerUuid = client.player.getUUID();
+
             server.execute(() -> {
-                ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                ServerLevel sWorld = server.getLevel(client.level.dimension());
                 if (sWorld == null) return;
-                ServerPlayerEntity sPlayer = server.getPlayerManager().getPlayer(playerUuid);
-                Inventory inv = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
+
+                ServerPlayer sPlayer = server.getPlayerList().getPlayer(playerUuid);
+                Container inv = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
                 if (inv != null) {
-                    int size = inv.size();
-                    DefaultedList<ItemStack> copy = DefaultedList.ofSize(size, ItemStack.EMPTY);
+                    int size = inv.getContainerSize();
+                    NonNullList<ItemStack> copy = NonNullList.withSize(size, ItemStack.EMPTY);
                     for (int i = 0; i < size; i++) {
-                        copy.set(i, inv.getStack(i).copy());
+                        copy.set(i, inv.getItem(i).copy());
                     }
+
                     float litProg = 0f;
                     float cookProg = 0f;
                     BlockEntity be = sWorld.getBlockEntity(targetPos);
-                    if (be instanceof net.minecraft.block.entity.AbstractFurnaceBlockEntity furnace) {
+                    if (be instanceof AbstractFurnaceBlockEntity furnace) {
                         try {
-                            net.minecraft.screen.PropertyDelegate pd = ((com.holochest.mixin.AbstractFurnaceBlockEntityAccessor) furnace).getPropertyDelegate();
+                            net.minecraft.world.inventory.ContainerData pd = ((com.holochest.mixin.AbstractFurnaceBlockEntityAccessor) furnace).getDataAccess();
                             if (pd != null) {
                                 int litRemaining = pd.get(0);
                                 int litTotal = pd.get(1);
@@ -420,6 +421,7 @@ public class HoloChestManager {
                     }
                     final float finalLitProg = litProg;
                     final float finalCookProg = cookProg;
+
                     client.execute(() -> {
                         if (activeSessions.containsKey(targetPos)) {
                             session.updateSize(size);
@@ -435,25 +437,25 @@ public class HoloChestManager {
         }
     }
 
-    public static Inventory getContainerInventoryDirect(ServerWorld sWorld, BlockPos pos, ServerPlayerEntity sPlayer) {
+    public static Container getContainerInventoryDirect(ServerLevel sWorld, BlockPos pos, ServerPlayer sPlayer) {
         BlockState state = sWorld.getBlockState(pos);
         Block block = state.getBlock();
+
         if (block instanceof ChestBlock chestBlock) {
-            return ChestBlock.getInventory(chestBlock, state, sWorld, pos, true);
+            return ChestBlock.getContainer(chestBlock, state, sWorld, pos, true);
         }
         if (block instanceof EnderChestBlock && sPlayer != null) {
             return sPlayer.getEnderChestInventory();
         }
+
         BlockEntity be = sWorld.getBlockEntity(pos);
-        if (be instanceof Inventory inv) {
+        if (be instanceof Container inv) {
             return inv;
         }
         return null;
     }
 
-
     public void startClosingAll() {
-        MinecraftClient client = MinecraftClient.getInstance();
         float maxProg = 0f;
         boolean anyNotClosing = false;
         for (HoloSession session : activeSessions.values()) {
@@ -482,22 +484,22 @@ public class HoloChestManager {
     }
 
     public void onVanillaContainerScreenOpened() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         BlockPos targetPos = lastInteractedPos;
         long elapsed = System.currentTimeMillis() - lastInteractionTime;
 
         if (targetPos == null || elapsed > 3000) {
-            if (client.crosshairTarget instanceof BlockHitResult bhr && bhr.getType() == HitResult.Type.BLOCK) {
+            if (client.hitResult instanceof BlockHitResult bhr && bhr.getType() == HitResult.Type.BLOCK) {
                 targetPos = bhr.getBlockPos();
             }
         }
 
-        if (targetPos == null && client.world != null && client.player != null) {
-            Vec3d playerPos = client.player.getEyePos();
+        if (targetPos == null && client.level != null && client.player != null) {
+            Vec3 playerPos = client.player.getEyePosition();
             double closestDistSq = Double.MAX_VALUE;
             BlockPos closestPos = null;
             for (HoloSession session : activeSessions.values()) {
-                double distSq = session.getPos().getSquaredDistance(playerPos);
+                double distSq = session.getPos().distToCenterSqr(playerPos);
                 if (distSq < closestDistSq && distSq <= 36.0) {
                     closestDistSq = distSq;
                     closestPos = session.getPos();
@@ -552,20 +554,20 @@ public class HoloChestManager {
 
     public void closeBarrelBlock(BlockPos pos) {
         if (pos == null) return;
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) return;
-        BlockState state = client.world.getBlockState(pos);
-        if (state.getBlock() instanceof BarrelBlock && state.contains(BarrelBlock.OPEN)) {
-            client.world.setBlockState(pos, state.with(BarrelBlock.OPEN, false), 3);
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) return;
+        BlockState state = client.level.getBlockState(pos);
+        if (state.getBlock() instanceof BarrelBlock && state.hasProperty(BlockStateProperties.OPEN)) {
+            client.level.setBlock(pos, state.setValue(BlockStateProperties.OPEN, false), 3);
         }
-        MinecraftServer server = client.getServer();
+        MinecraftServer server = client.getSingleplayerServer();
         if (server != null) {
             server.execute(() -> {
-                ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                ServerLevel sWorld = server.getLevel(client.level.dimension());
                 if (sWorld != null) {
                     BlockState sState = sWorld.getBlockState(pos);
-                    if (sState.getBlock() instanceof BarrelBlock && sState.contains(BarrelBlock.OPEN)) {
-                        sWorld.setBlockState(pos, sState.with(BarrelBlock.OPEN, false), 3);
+                    if (sState.getBlock() instanceof BarrelBlock && sState.hasProperty(BlockStateProperties.OPEN)) {
+                        sWorld.setBlock(pos, sState.setValue(BlockStateProperties.OPEN, false), 3);
                     }
                 }
             });
@@ -582,11 +584,8 @@ public class HoloChestManager {
     }
 
     public static boolean isShiftHeld() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.getWindow() == null) return false;
-        return InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_RIGHT_SHIFT)
-                || (client.options != null && client.options.sneakKey.isPressed());
+        Minecraft client = Minecraft.getInstance();
+        return client.options != null && client.options.keyShift.isDown();
     }
 
     public static Vector2f getHotbarSlotScreenPos(int hotbarSlot, int sw, int sh) {
@@ -599,21 +598,6 @@ public class HoloChestManager {
         return new Vector2f(slotCenterX, slotCenterY);
     }
 
-    public static int findTargetSlotForStack(PlayerInventory inv, ItemStack stack) {
-        for (int i = 0; i < 9; i++) {
-            ItemStack s = inv.getStack(i);
-            if (!s.isEmpty() && ItemStack.areItemsAndComponentsEqual(s, stack) && s.getCount() < s.getMaxCount()) {
-                return i;
-            }
-        }
-        for (int i = 0; i < 9; i++) {
-            if (inv.getStack(i).isEmpty()) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     public void handleLeftClick() {
         if (hoveredSession == null) return;
 
@@ -624,8 +608,8 @@ public class HoloChestManager {
 
         if (hoveredSlot == -1) return;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
         if (player == null) return;
 
         if (hoveredSlot >= hoveredSession.getCachedSize()) return;
@@ -640,32 +624,32 @@ public class HoloChestManager {
             hoveredSession.setStack(hoveredSlot, ItemStack.EMPTY);
         }
 
-        if (client.world != null) {
-            BlockState bState = client.world.getBlockState(hoveredSession.getPos());
+        if (client.level != null) {
+            BlockState bState = client.level.getBlockState(hoveredSession.getPos());
             if (bState.getBlock() instanceof EnderChestBlock) {
-                player.getEnderChestInventory().setStack(hoveredSlot, hoveredSession.getStack(hoveredSlot).copy());
+                player.getEnderChestInventory().setItem(hoveredSlot, hoveredSession.getStack(hoveredSlot).copy());
             }
         }
 
-        int sw = client.getWindow().getScaledWidth();
-        int sh = client.getWindow().getScaledHeight();
+        int sw = client.getWindow().getGuiScaledWidth();
+        int sh = client.getWindow().getGuiScaledHeight();
         Vector2f slotPos = hoveredSession.getSlotScreenPos(hoveredSlot);
 
         int[] countsBefore = new int[36];
         for (int i = 0; i < 36; i++) {
-            countsBefore[i] = player.getInventory().getStack(i).getCount();
+            countsBefore[i] = player.getInventory().getItem(i).getCount();
         }
 
-        player.getInventory().insertStack(toGive.copy());
+        player.getInventory().add(toGive.copy());
 
         int selectedHotbar = player.getInventory().getSelectedSlot();
         int increasedSlot = -1;
 
-        if (player.getInventory().getStack(selectedHotbar).getCount() > countsBefore[selectedHotbar]) {
+        if (player.getInventory().getItem(selectedHotbar).getCount() > countsBefore[selectedHotbar]) {
             increasedSlot = selectedHotbar;
         } else {
             for (int i = 0; i < 9; i++) {
-                if (player.getInventory().getStack(i).getCount() > countsBefore[i]) {
+                if (player.getInventory().getItem(i).getCount() > countsBefore[i]) {
                     increasedSlot = i;
                     break;
                 }
@@ -679,61 +663,45 @@ public class HoloChestManager {
         flyingItems.add(new FlyingItem(toGive.copy(), slotPos, destPos, 350, true));
         HoloSoundHelper.playSlotHover();
 
-        MinecraftServer server = client.getServer();
+        MinecraftServer server = client.getSingleplayerServer();
         if (server != null) {
             BlockPos targetPos = hoveredSession.getPos();
             int targetSlot = this.hoveredSlot;
-            UUID playerUuid = player.getUuid();
+            UUID playerUuid = player.getUUID();
 
             server.execute(() -> {
-                ServerPlayerEntity sPlayer = server.getPlayerManager().getPlayer(playerUuid);
-                ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                ServerPlayer sPlayer = server.getPlayerList().getPlayer(playerUuid);
+                ServerLevel sWorld = server.getLevel(client.level.dimension());
                 if (sPlayer == null || sWorld == null) return;
 
-                Inventory sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
-                if (sContainer != null && targetSlot < sContainer.size()) {
-                    ItemStack realStack = sContainer.getStack(targetSlot);
+                Container sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
+                if (sContainer != null && targetSlot < sContainer.getContainerSize()) {
+                    ItemStack realStack = sContainer.getItem(targetSlot);
                     if (!realStack.isEmpty()) {
                         int serverTakeCount = shiftHeld ? realStack.getCount() : 1;
                         ItemStack realGive = realStack.split(serverTakeCount);
-                        sContainer.markDirty();
+                        sContainer.setChanged();
 
-                        boolean inserted = sPlayer.getInventory().insertStack(realGive);
+                        boolean inserted = sPlayer.getInventory().add(realGive);
                         if (!inserted) {
-                            sPlayer.dropItem(realGive, false);
+                            sPlayer.drop(realGive, false, net.minecraft.util.Prediction.SERVER_ONLY);
                         }
-                        sPlayer.playerScreenHandler.sendContentUpdates();
+                        sPlayer.containerMenu.broadcastChanges();
                     }
                 }
             });
         }
     }
 
-    public static boolean canInsertIntoSlot(net.minecraft.world.World world, BlockState state, int slot, ItemStack stack) {
+    public static boolean canInsertIntoSlot(Level world, BlockState state, int slot, ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         Block b = state.getBlock();
         if (b instanceof AbstractFurnaceBlock) {
-
             if (slot == 2) return false;
-
             if (slot == 1) {
-                if (world == null) return true;
-                return world.getFuelRegistry().isFuel(stack);
+                return stack.has(DataComponents.COOKING_FUEL);
             }
-
-            if (slot == 0) {
-                if (world == null) return true;
-                var recipeManager = world.getRecipeManager();
-                if (recipeManager == null) return true;
-                var key = net.minecraft.recipe.RecipePropertySet.FURNACE_INPUT;
-                if (b instanceof BlastFurnaceBlock) {
-                    key = net.minecraft.recipe.RecipePropertySet.BLAST_FURNACE_INPUT;
-                } else if (b instanceof SmokerBlock) {
-                    key = net.minecraft.recipe.RecipePropertySet.SMOKER_INPUT;
-                }
-                var propSet = recipeManager.getPropertySet(key);
-                return propSet != null && propSet.canUse(stack);
-            }
+            return true;
         }
         return true;
     }
@@ -741,16 +709,16 @@ public class HoloChestManager {
     public void handleRightClick() {
         if (hoveredSession == null || hoveredSlot == -1) return;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || client.world == null) return;
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
+        if (player == null || client.level == null) return;
 
         if (hoveredSlot >= hoveredSession.getCachedSize()) return;
         ItemStack currentInSlot = hoveredSession.getStack(hoveredSlot);
 
         if (!currentInSlot.isEmpty()) {
             boolean isShulker = (currentInSlot.getItem() instanceof BlockItem bi && bi.getBlock() instanceof ShulkerBoxBlock)
-                    || currentInSlot.getItem().getTranslationKey().contains("shulker_box");
+                    || currentInSlot.getItem().getDescriptionId().contains("shulker_box");
 
             if (isShulker) {
                 hoveredSession.toggleShulkerPreview(hoveredSlot);
@@ -759,19 +727,19 @@ public class HoloChestManager {
             }
         }
 
-        ItemStack clientHeld = player.getMainHandStack();
+        ItemStack clientHeld = player.getMainHandItem();
         if (clientHeld.isEmpty()) return;
 
-        BlockState bState = client.world.getBlockState(hoveredSession.getPos());
-        if (!canInsertIntoSlot(client.world, bState, hoveredSlot, clientHeld)) {
+        BlockState bState = client.level.getBlockState(hoveredSession.getPos());
+        if (!canInsertIntoSlot(client.level, bState, hoveredSlot, clientHeld)) {
             return;
         }
 
         boolean shiftHeld = isShiftHeld();
-        int sw = client.getWindow().getScaledWidth();
-        int sh = client.getWindow().getScaledHeight();
+        int sw = client.getWindow().getGuiScaledWidth();
+        int sh = client.getWindow().getGuiScaledHeight();
         int selectedHotbar = player.getInventory().getSelectedSlot();
-        Vector2f fromPos = getHotbarSlotScreenPos(selectedHotbar, sw, sh); 
+        Vector2f fromPos = getHotbarSlotScreenPos(selectedHotbar, sw, sh);
         Vector2f slotPos = hoveredSession.getSlotScreenPos(hoveredSlot);
 
         if (currentInSlot.isEmpty()) {
@@ -779,51 +747,51 @@ public class HoloChestManager {
             ItemStack placed = clientHeld.split(countToPlace);
             hoveredSession.setStack(hoveredSlot, placed.copy());
 
-            if (client.world != null) {
+            if (client.level != null) {
                 if (bState.getBlock() instanceof EnderChestBlock) {
-                    player.getEnderChestInventory().setStack(hoveredSlot, placed.copy());
+                    player.getEnderChestInventory().setItem(hoveredSlot, placed.copy());
                 }
             }
 
             flyingItems.add(new FlyingItem(placed.copy(), fromPos, slotPos, 350, false));
             HoloSoundHelper.playSlotHover();
 
-            MinecraftServer server = client.getServer();
+            MinecraftServer server = client.getSingleplayerServer();
             if (server != null) {
                 BlockPos targetPos = hoveredSession.getPos();
                 int targetSlot = this.hoveredSlot;
-                UUID playerUuid = player.getUuid();
+                UUID playerUuid = player.getUUID();
 
                 server.execute(() -> {
-                    ServerPlayerEntity sPlayer = server.getPlayerManager().getPlayer(playerUuid);
-                    ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                    ServerPlayer sPlayer = server.getPlayerList().getPlayer(playerUuid);
+                    ServerLevel sWorld = server.getLevel(client.level.dimension());
                     if (sPlayer == null || sWorld == null) return;
 
-                    ItemStack held = sPlayer.getMainHandStack();
+                    ItemStack held = sPlayer.getMainHandItem();
                     if (held.isEmpty()) return;
 
                     if (!canInsertIntoSlot(sWorld, sWorld.getBlockState(targetPos), targetSlot, held)) return;
 
-                    Inventory sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
-                    if (sContainer != null && targetSlot < sContainer.size()) {
+                    Container sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
+                    if (sContainer != null && targetSlot < sContainer.getContainerSize()) {
                         ItemStack placedServer = held.split(countToPlace);
-                        sContainer.setStack(targetSlot, placedServer);
-                        sContainer.markDirty();
-                        sPlayer.playerScreenHandler.sendContentUpdates();
+                        sContainer.setItem(targetSlot, placedServer);
+                        sContainer.setChanged();
+                        sPlayer.containerMenu.broadcastChanges();
                     }
                 });
             }
-        } else if (ItemStack.areItemsAndComponentsEqual(currentInSlot, clientHeld)) {
-            int max = currentInSlot.getMaxCount();
+        } else if (ItemStack.isSameItemSameComponents(currentInSlot, clientHeld)) {
+            int max = currentInSlot.getMaxStackSize();
             int canAdd = max - currentInSlot.getCount();
             if (canAdd > 0) {
                 int toAdd = shiftHeld ? Math.min(canAdd, clientHeld.getCount()) : 1;
-                clientHeld.decrement(toAdd);
-                currentInSlot.increment(toAdd);
+                clientHeld.shrink(toAdd);
+                currentInSlot.grow(toAdd);
 
-                if (client.world != null) {
+                if (client.level != null) {
                     if (bState.getBlock() instanceof EnderChestBlock) {
-                        player.getEnderChestInventory().setStack(hoveredSlot, currentInSlot.copy());
+                        player.getEnderChestInventory().setItem(hoveredSlot, currentInSlot.copy());
                     }
                 }
 
@@ -831,27 +799,27 @@ public class HoloChestManager {
                 flyingItems.add(new FlyingItem(anim, fromPos, slotPos, 350, false));
                 HoloSoundHelper.playSlotHover();
 
-                MinecraftServer server = client.getServer();
+                MinecraftServer server = client.getSingleplayerServer();
                 if (server != null) {
                     BlockPos targetPos = hoveredSession.getPos();
                     int targetSlot = this.hoveredSlot;
-                    UUID playerUuid = player.getUuid();
+                    UUID playerUuid = player.getUUID();
 
                     server.execute(() -> {
-                        ServerPlayerEntity sPlayer = server.getPlayerManager().getPlayer(playerUuid);
-                        ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                        ServerPlayer sPlayer = server.getPlayerList().getPlayer(playerUuid);
+                        ServerLevel sWorld = server.getLevel(client.level.dimension());
                         if (sPlayer == null || sWorld == null) return;
 
-                        ItemStack held = sPlayer.getMainHandStack();
+                        ItemStack held = sPlayer.getMainHandItem();
                         if (held.isEmpty()) return;
 
-                        Inventory sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
-                        if (sContainer != null && targetSlot < sContainer.size()) {
-                            ItemStack inSlot = sContainer.getStack(targetSlot);
-                            held.decrement(toAdd);
-                            inSlot.increment(toAdd);
-                            sContainer.markDirty();
-                            sPlayer.playerScreenHandler.sendContentUpdates();
+                        Container sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
+                        if (sContainer != null && targetSlot < sContainer.getContainerSize()) {
+                            ItemStack inSlot = sContainer.getItem(targetSlot);
+                            held.shrink(toAdd);
+                            inSlot.grow(toAdd);
+                            sContainer.setChanged();
+                            sPlayer.containerMenu.broadcastChanges();
                         }
                     });
                 }
@@ -877,9 +845,9 @@ public class HoloChestManager {
     public void sortSession(HoloSession session) {
         if (session == null || session.isFurnace()) return;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || client.world == null) return;
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
+        if (player == null || client.level == null) return;
 
         int totalSlots = session.getCachedSize();
         if (totalSlots <= 0) return;
@@ -898,11 +866,11 @@ public class HoloChestManager {
         for (ItemStack stack : stacks) {
             if (stack.isEmpty()) continue;
             for (ItemStack existing : merged) {
-                if (ItemStack.areItemsAndComponentsEqual(existing, stack) && existing.getCount() < existing.getMaxCount()) {
-                    int canTake = existing.getMaxCount() - existing.getCount();
+                if (ItemStack.isSameItemSameComponents(existing, stack) && existing.getCount() < existing.getMaxStackSize()) {
+                    int canTake = existing.getMaxStackSize() - existing.getCount();
                     int move = Math.min(canTake, stack.getCount());
-                    existing.increment(move);
-                    stack.decrement(move);
+                    existing.grow(move);
+                    stack.shrink(move);
                     if (stack.isEmpty()) break;
                 }
             }
@@ -918,14 +886,14 @@ public class HoloChestManager {
                 return Integer.compare(catA, catB);
             }
 
-            String regA = Registries.ITEM.getId(a.getItem()).getPath();
-            String regB = Registries.ITEM.getId(b.getItem()).getPath();
+            String regA = BuiltInRegistries.ITEM.getKey(a.getItem()).getPath();
+            String regB = BuiltInRegistries.ITEM.getKey(b.getItem()).getPath();
 
             if (catA == 0) {
                 int tierA = getMaterialTier(regA);
                 int tierB = getMaterialTier(regB);
                 if (tierA != tierB) {
-                    return Integer.compare(tierA, tierB); 
+                    return Integer.compare(tierA, tierB);
                 }
                 int subA = getWeaponToolSubIndex(regA);
                 int subB = getWeaponToolSubIndex(regB);
@@ -938,7 +906,7 @@ public class HoloChestManager {
                 int tierA = getMaterialTier(regA);
                 int tierB = getMaterialTier(regB);
                 if (tierA != tierB) {
-                    return Integer.compare(tierA, tierB); 
+                    return Integer.compare(tierA, tierB);
                 }
                 int slotA = getArmorSlotIndex(regA);
                 int slotB = getArmorSlotIndex(regB);
@@ -955,8 +923,8 @@ public class HoloChestManager {
                 }
             }
 
-            String nameA = a.getName().getString();
-            String nameB = b.getName().getString();
+            String nameA = a.getHoverName().getString();
+            String nameB = b.getHoverName().getString();
             int nameComp = nameA.compareToIgnoreCase(nameB);
             if (nameComp != 0) {
                 return nameComp;
@@ -972,39 +940,39 @@ public class HoloChestManager {
             }
         }
 
-        BlockState bState = client.world.getBlockState(session.getPos());
+        BlockState bState = client.level.getBlockState(session.getPos());
         if (bState.getBlock() instanceof EnderChestBlock) {
-            Inventory clientEnder = player.getEnderChestInventory();
-            for (int i = 0; i < totalSlots && i < clientEnder.size(); i++) {
-                clientEnder.setStack(i, session.getStack(i).copy());
+            Container clientEnder = player.getEnderChestInventory();
+            for (int i = 0; i < totalSlots && i < clientEnder.getContainerSize(); i++) {
+                clientEnder.setItem(i, session.getStack(i).copy());
             }
         }
 
-        MinecraftServer server = client.getServer();
+        MinecraftServer server = client.getSingleplayerServer();
         if (server != null) {
             BlockPos targetPos = session.getPos();
-            UUID playerUuid = player.getUuid();
+            UUID playerUuid = player.getUUID();
             List<ItemStack> serverStacks = new ArrayList<>();
             for (int i = 0; i < totalSlots; i++) {
                 serverStacks.add(session.getStack(i).copy());
             }
 
             server.execute(() -> {
-                ServerPlayerEntity sPlayer = server.getPlayerManager().getPlayer(playerUuid);
-                ServerWorld sWorld = server.getWorld(client.world.getRegistryKey());
+                ServerPlayer sPlayer = server.getPlayerList().getPlayer(playerUuid);
+                ServerLevel sWorld = server.getLevel(client.level.dimension());
                 if (sPlayer == null || sWorld == null) return;
 
-                Inventory sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
+                Container sContainer = getContainerInventoryDirect(sWorld, targetPos, sPlayer);
                 if (sContainer != null) {
-                    for (int i = 0; i < sContainer.size(); i++) {
+                    for (int i = 0; i < sContainer.getContainerSize(); i++) {
                         if (i < serverStacks.size()) {
-                            sContainer.setStack(i, serverStacks.get(i).copy());
+                            sContainer.setItem(i, serverStacks.get(i).copy());
                         } else {
-                            sContainer.setStack(i, ItemStack.EMPTY);
+                            sContainer.setItem(i, ItemStack.EMPTY);
                         }
                     }
-                    sContainer.markDirty();
-                    sPlayer.playerScreenHandler.sendContentUpdates();
+                    sContainer.setChanged();
+                    sPlayer.containerMenu.broadcastChanges();
                 }
             });
         }
@@ -1068,21 +1036,21 @@ public class HoloChestManager {
     public static int getItemSortCategory(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return 999;
         Item item = stack.getItem();
-        String regId = Registries.ITEM.getId(item).getPath();
+        String regId = BuiltInRegistries.ITEM.getKey(item).getPath();
 
         if (regId.contains("sword") || (regId.contains("axe") && !regId.contains("pickaxe"))
                 || regId.contains("pickaxe") || regId.contains("shovel") || regId.contains("hoe")
                 || regId.contains("mace") || regId.contains("trident") || regId.contains("bow")
                 || regId.contains("shield") || regId.contains("shears") || regId.contains("fishing_rod")
-                || regId.contains("flint_and_steel")
-                || (stack.contains(DataComponentTypes.TOOL) && !regId.contains("helmet") && !regId.contains("chestplate") && !regId.contains("leggings") && !regId.contains("boots"))) {
+                || regId.contains("flint_and_steel") || stack.has(DataComponents.WEAPON)
+                || (stack.has(DataComponents.TOOL) && !regId.contains("helmet") && !regId.contains("chestplate") && !regId.contains("leggings") && !regId.contains("boots"))) {
             return 0;
         }
 
         if (regId.contains("helmet") || regId.contains("chestplate") || regId.contains("leggings")
                 || regId.contains("boots") || regId.contains("elytra") || regId.contains("cap")
                 || regId.contains("tunic") || regId.contains("pants") || regId.contains("shoes")
-                ) {
+                || stack.has(DataComponents.EQUIPPABLE)) {
             return 1;
         }
 
@@ -1094,7 +1062,7 @@ public class HoloChestManager {
             return 2;
         }
 
-        if (stack.contains(DataComponentTypes.FOOD)
+        if (stack.has(DataComponents.FOOD)
                 || regId.contains("potion") || regId.contains("golden_apple") || regId.contains("carrot")
                 || regId.contains("bread") || regId.contains("cooked_") || regId.contains("beef")
                 || regId.contains("porkchop") || regId.contains("chicken") || regId.contains("mutton")
@@ -1131,21 +1099,21 @@ public class HoloChestManager {
             return 7;
         }
 
-        return 8; 
+        return 8;
     }
 
     public void tick() {
         flyingItems.removeIf(FlyingItem::isFinished);
         if (activeSessions.isEmpty()) return;
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || client.world == null) {
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
+        if (player == null || client.level == null) {
             forceCloseAll();
             return;
         }
 
-        if (client.world.getTime() % 4 == 0) {
+        if (client.level.getGameTime() % 4 == 0) {
             for (HoloSession session : activeSessions.values()) {
                 if (!session.isClosing() && (session.isFurnace() || session.getCachedSize() <= 9)) {
                     syncSessionFromServer(session);
@@ -1155,7 +1123,7 @@ public class HoloChestManager {
 
         for (HoloSession session : activeSessions.values()) {
             BlockPos pos = session.getPos();
-            double distSq = player.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            double distSq = player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
             if (distSq > 40.0 * 40.0) {
                 startClosingSession(session);
             }

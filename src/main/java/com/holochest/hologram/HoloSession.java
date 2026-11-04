@@ -1,14 +1,14 @@
 package com.holochest.hologram;
 
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ContainerComponent;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.text.Text;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
+import net.minecraft.network.chat.Component;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 import org.joml.Vector2f;
 
 public class HoloSession {
@@ -19,8 +19,8 @@ public class HoloSession {
     private final BlockPos pos;
     private final BlockPos partnerPos;
     private final String title;
-    private Text titleText;
-    private Text previewTitleText;
+    private Component titleText;
+    private Component previewTitleText;
     private final int titleColor;
     private final SoundEvent openSound;
     private final SoundEvent closeSound;
@@ -28,7 +28,7 @@ public class HoloSession {
     private int cols;
     private int rows;
 
-    private final DefaultedList<ItemStack> cachedStacks;
+    private final NonNullList<ItemStack> cachedStacks;
     private long openStartTime;
     private long closeStartTime;
     private boolean closing = false;
@@ -47,7 +47,7 @@ public class HoloSession {
     private float slotGap = 2f;
 
     private int previewSlot = -1;
-    private DefaultedList<ItemStack> previewStacks = null;
+    private NonNullList<ItemStack> previewStacks = null;
     private String previewTitle = "";
     private float previewMinX = 0;
     private float previewMinY = 0;
@@ -61,7 +61,7 @@ public class HoloSession {
     private boolean sortButtonHovered = false;
     private long lastSortTime = 0;
 
-    public HoloSession(BlockPos pos, BlockPos partnerPos, Text titleText, int titleColor, int size, SoundEvent openSound, SoundEvent closeSound) {
+    public HoloSession(BlockPos pos, BlockPos partnerPos, Component titleText, int titleColor, int size, SoundEvent openSound, SoundEvent closeSound) {
         this.pos = pos;
         this.partnerPos = partnerPos;
         this.titleText = titleText;
@@ -71,7 +71,7 @@ public class HoloSession {
         this.openSound = openSound;
         this.closeSound = closeSound;
         calculateGridDimensions(size);
-        this.cachedStacks = DefaultedList.ofSize(Math.max(54, size), ItemStack.EMPTY);
+        this.cachedStacks = NonNullList.withSize(Math.max(54, size), ItemStack.EMPTY);
         this.openStartTime = System.currentTimeMillis();
     }
 
@@ -202,7 +202,7 @@ public class HoloSession {
         return rows;
     }
 
-    public DefaultedList<ItemStack> getCachedStacks() {
+    public NonNullList<ItemStack> getCachedStacks() {
         return cachedStacks;
     }
 
@@ -314,10 +314,10 @@ public class HoloSession {
         if (previewTitleText != null) {
             return previewTitleText.getString();
         }
-        return Text.translatable("container.shulkerBox").getString();
+        return Component.translatable("container.shulkerBox").getString();
     }
 
-    public DefaultedList<ItemStack> getPreviewStacks() {
+    public NonNullList<ItemStack> getPreviewStacks() {
         return previewStacks;
     }
 
@@ -350,19 +350,19 @@ public class HoloSession {
         if (stack.isEmpty()) return false;
 
         boolean isShulker = (stack.getItem() instanceof BlockItem bi && bi.getBlock() instanceof ShulkerBoxBlock)
-                || stack.getItem().getTranslationKey().contains("shulker_box");
+                || stack.getItem().getDescriptionId().contains("shulker_box");
 
         if (!isShulker) return false;
 
-        ContainerComponent container = stack.get(DataComponentTypes.CONTAINER);
-        DefaultedList<ItemStack> items = DefaultedList.ofSize(27, ItemStack.EMPTY);
+        ItemContainerContents container = stack.get(DataComponents.CONTAINER);
+        NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
         if (container != null) {
-            container.copyTo(items);
+            container.copyInto(items);
         }
 
         this.previewSlot = slotIndex;
         this.previewStacks = items;
-        this.previewTitle = stack.getName().getString();
+        this.previewTitle = stack.getHoverName().getString();
         return true;
     }
 

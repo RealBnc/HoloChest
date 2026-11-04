@@ -2,12 +2,16 @@ package com.holochest;
 
 import com.holochest.config.HoloChestConfig;
 import com.holochest.hologram.HoloChestManager;
+import com.holochest.render.HoloHudRenderer;
+import com.holochest.sound.HoloSoundHelper;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import org.lwjgl.glfw.GLFW;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,39 +20,60 @@ public class HoloChestMod implements ClientModInitializer {
     public static final String MOD_ID = "holochest";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static KeyBinding holoChestKey;
-    private static KeyBinding holoSortKey;
+    private static KeyMapping holoChestKey;
+    private static KeyMapping holoSortKey;
+
+    private static InputConstants.Type getKeyType() {
+        try {
+            return InputConstants.Type.valueOf("KEYBOARD");
+        } catch (Throwable t) {
+            try {
+                return InputConstants.Type.valueOf("KEYSYM");
+            } catch (Throwable t2) {
+                return InputConstants.Type.values()[0];
+            }
+        }
+    }
 
     @Override
     public void onInitializeClient() {
-        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("m4lib")) {
+        if (!FabricLoader.getInstance().isModLoaded("m4lib")) {
             throw new IllegalStateException("HoloChest requires m4lib!");
         }
         HoloChestConfig.load();
-        com.holochest.sound.HoloSoundHelper.registerSounds();
+        HoloSoundHelper.registerSounds();
 
-        holoChestKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("holochest", "category"));
+        InputConstants.Type keyType = getKeyType();
+
+        holoChestKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.holochest.open",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_V,
-                KeyBinding.Category.MISC
+                keyType,
+                InputConstants.KEY_V,
+                category
         ));
 
-        holoSortKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        holoSortKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.holochest.sort",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_R,
-                KeyBinding.Category.MISC
+                keyType,
+                InputConstants.KEY_R,
+                category
         ));
+
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("holochest", "hud"), (extractor, deltaTracker) -> {
+            if (HoloChestManager.getInstance().hasActiveSessions() || !HoloChestManager.getInstance().getFlyingItems().isEmpty()) {
+                HoloHudRenderer.render(extractor, deltaTracker);
+            }
+        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            while (holoChestKey.wasPressed()) {
+            while (holoChestKey.consumeClick()) {
                 HoloChestManager.getInstance().toggle();
             }
 
-            while (holoSortKey.wasPressed()) {
+            while (holoSortKey.consumeClick()) {
                 if (HoloChestManager.getInstance().hasActiveSessions()) {
                     HoloChestManager.getInstance().sortFocusedSession();
                 }
@@ -60,11 +85,11 @@ public class HoloChestMod implements ClientModInitializer {
         LOGGER.info("HoloChest initialized");
     }
 
-    public static KeyBinding getHoloChestKey() {
+    public static KeyMapping getHoloChestKey() {
         return holoChestKey;
     }
 
-    public static KeyBinding getHoloSortKey() {
+    public static KeyMapping getHoloSortKey() {
         return holoSortKey;
     }
 }
