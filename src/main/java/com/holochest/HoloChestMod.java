@@ -37,6 +37,9 @@ public class HoloChestMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (!FabricLoader.getInstance().isModLoaded("m4lib")) {
+            throw new IllegalStateException("HoloChest requires m4lib!");
+        }
         HoloChestConfig.load();
         HoloSoundHelper.registerSounds();
 
