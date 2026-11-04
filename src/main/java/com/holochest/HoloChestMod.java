@@ -31,14 +31,14 @@ public class HoloChestMod implements ClientModInitializer {
                 "key.holochest.open",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_V,
-                "Holo Chest"
+                KeyBinding.Category.MISC
         ));
 
         holoSortKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.holochest.sort",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_R,
-                "Holo Chest"
+                KeyBinding.Category.MISC
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

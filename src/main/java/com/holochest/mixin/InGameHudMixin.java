@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(InGameHud.class)
 public abstract class InGameHudMixin {
 
-    @Inject(method = "render", at = @At("TAIL"))
+    @Inject(method = "renderCrosshair", at = @At("HEAD"))
     private void holochest$renderHolo(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         if (HoloChestManager.getInstance().hasActiveSessions() || !HoloChestManager.getInstance().getFlyingItems().isEmpty()) {
             HoloHudRenderer.render(context, tickCounter);
