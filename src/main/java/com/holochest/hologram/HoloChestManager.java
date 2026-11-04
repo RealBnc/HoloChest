@@ -717,20 +717,22 @@ public class HoloChestManager {
             if (slot == 2) return false;
 
             if (slot == 1) {
-                return net.minecraft.block.entity.AbstractFurnaceBlockEntity.canUseAsFuel(stack);
+                if (world == null) return true;
+                return world.getFuelRegistry().isFuel(stack);
             }
 
             if (slot == 0) {
                 if (world == null) return true;
                 var recipeManager = world.getRecipeManager();
                 if (recipeManager == null) return true;
-                net.minecraft.recipe.RecipeType<?> type = net.minecraft.recipe.RecipeType.SMELTING;
+                var key = net.minecraft.recipe.RecipePropertySet.FURNACE_INPUT;
                 if (b instanceof BlastFurnaceBlock) {
-                    type = net.minecraft.recipe.RecipeType.BLASTING;
+                    key = net.minecraft.recipe.RecipePropertySet.BLAST_FURNACE_INPUT;
                 } else if (b instanceof SmokerBlock) {
-                    type = net.minecraft.recipe.RecipeType.SMOKING;
+                    key = net.minecraft.recipe.RecipePropertySet.SMOKER_INPUT;
                 }
-                return recipeManager.getFirstMatch((net.minecraft.recipe.RecipeType) type, new net.minecraft.recipe.input.SingleStackRecipeInput(stack), world).isPresent();
+                var propSet = recipeManager.getPropertySet(key);
+                return propSet != null && propSet.canUse(stack);
             }
         }
         return true;

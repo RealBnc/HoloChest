@@ -12,9 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class KeyboardInputMixin extends Input {
 
     @Inject(method = "tick", at = @At("TAIL"))
-    private void holochest$suppressSneakWhenAiming(boolean slowDown, float f, CallbackInfo ci) {
-        if (HoloChestManager.getInstance().isAimingAtAnyPanel()) {
-            this.sneaking = false;
+    private void holochest$suppressSneakWhenAiming(CallbackInfo ci) {
+        if (HoloChestManager.getInstance().isAimingAtAnyPanel() && this.playerInput != null) {
+            this.playerInput = new net.minecraft.util.PlayerInput(playerInput.forward(), playerInput.backward(), playerInput.left(), playerInput.right(), playerInput.jump(), false, playerInput.sprint());
         }
     }
 }
