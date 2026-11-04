@@ -658,7 +658,7 @@ public class HoloChestManager {
 
         player.getInventory().insertStack(toGive.copy());
 
-        int selectedHotbar = player.getInventory().selectedSlot;
+        int selectedHotbar = player.getInventory().getSelectedSlot();
         int increasedSlot = -1;
 
         if (player.getInventory().getStack(selectedHotbar).getCount() > countsBefore[selectedHotbar]) {
@@ -770,7 +770,7 @@ public class HoloChestManager {
         boolean shiftHeld = isShiftHeld();
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
-        int selectedHotbar = player.getInventory().selectedSlot;
+        int selectedHotbar = player.getInventory().getSelectedSlot();
         Vector2f fromPos = getHotbarSlotScreenPos(selectedHotbar, sw, sh); 
         Vector2f slotPos = hoveredSession.getSlotScreenPos(hoveredSlot);
 
