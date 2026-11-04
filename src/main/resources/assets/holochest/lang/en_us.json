@@ -1,0 +1,10 @@
+{
+  "key.category.holochest": "HoloChest",
+  "key.holochest.open": "Open / Close HoloChest",
+  "key.holochest.sort": "Auto-Sort Container",
+  "holochest.title": "HoloChest",
+  "holochest.sort_tip": "Sort (Middle Click)",
+  "subtitles.holochest.open": "Hologram Opened",
+  "subtitles.holochest.close": "Hologram Closed",
+  "subtitles.holochest.sort": "Container Sorted"
+}

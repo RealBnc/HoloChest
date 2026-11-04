@@ -1,0 +1,10 @@
+{
+  "key.category.holochest": "HoloChest",
+  "key.holochest.open": "Открыть / Закрыть HoloChest",
+  "key.holochest.sort": "Автосортировка хранилища",
+  "holochest.title": "HoloChest",
+  "holochest.sort_tip": "Сортировать (Средняя кнопка мыши)",
+  "subtitles.holochest.open": "Голограмма открыта",
+  "subtitles.holochest.close": "Голограмма закрыта",
+  "subtitles.holochest.sort": "Хранилище отсортировано"
+}

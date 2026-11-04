@@ -1,0 +1,44 @@
+{
+  "holo_open": {
+    "subtitle": "subtitles.holochest.open",
+    "sounds": [
+      "holochest:holo_open"
+    ]
+  },
+  "holo_open_50": {
+    "subtitle": "subtitles.holochest.open",
+    "sounds": [
+      "holochest:holo_open_50"
+    ]
+  },
+  "holo_close": {
+    "subtitle": "subtitles.holochest.close",
+    "sounds": [
+      "holochest:holo_close"
+    ]
+  },
+  "holo_close_75": {
+    "subtitle": "subtitles.holochest.close",
+    "sounds": [
+      "holochest:holo_close_75"
+    ]
+  },
+  "holo_close_50": {
+    "subtitle": "subtitles.holochest.close",
+    "sounds": [
+      "holochest:holo_close_50"
+    ]
+  },
+  "holo_close_25": {
+    "subtitle": "subtitles.holochest.close",
+    "sounds": [
+      "holochest:holo_close_25"
+    ]
+  },
+  "holo_sort": {
+    "subtitle": "subtitles.holochest.sort",
+    "sounds": [
+      "holochest:holo_sort"
+    ]
+  }
+}

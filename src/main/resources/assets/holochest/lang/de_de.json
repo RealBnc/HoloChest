@@ -1,0 +1,10 @@
+{
+  "key.category.holochest": "HoloChest",
+  "key.holochest.open": "HoloChest Öffnen / Schließen",
+  "key.holochest.sort": "Behälter automatisch sortieren",
+  "holochest.title": "HoloChest",
+  "holochest.sort_tip": "Sortieren (Mittelklick)",
+  "subtitles.holochest.open": "Hologramm geöffnet",
+  "subtitles.holochest.close": "Hologramm geschlossen",
+  "subtitles.holochest.sort": "Behälter sortiert"
+}
