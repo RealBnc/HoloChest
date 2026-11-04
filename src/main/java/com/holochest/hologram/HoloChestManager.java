@@ -584,8 +584,8 @@ public class HoloChestManager {
     public static boolean isShiftHeld() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.getWindow() == null) return false;
-        return InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT)
+        return InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT)
+                || InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_RIGHT_SHIFT)
                 || (client.options != null && client.options.sneakKey.isPressed());
     }
 
