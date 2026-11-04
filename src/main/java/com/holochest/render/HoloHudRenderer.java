@@ -295,11 +295,11 @@ public class HoloHudRenderer {
                     displayTitle = tr.trimToWidth(displayTitle, (int) Math.max(10, availW - 6)) + "...";
                 }
 
-                context.getMatrices().push();
-                context.getMatrices().translate((double)(startX + 6f * scale), (double)(startY + 4.5f * scale), 0.0);
-                context.getMatrices().scale((float)(fontScale), (float)(fontScale), 1.0f);
+                context.getMatrices().pushMatrix();
+                context.getMatrices().translate((float)(startX + 6f * scale), (float)(startY + 4.5f * scale));
+                context.getMatrices().scale((float)(fontScale), (float)(fontScale));
                 context.drawTextWithShadow(tr, displayTitle, 0, 0, titleColor);
-                context.getMatrices().pop();
+                context.getMatrices().popMatrix();
 
                 if (!session.isFurnace()) {
                     float btnW = 16f * scale;
@@ -316,13 +316,13 @@ public class HoloHudRenderer {
                     context.fill((int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBg);
                     drawBorder(context, (int) btnX, (int) btnY, (int) (btnX + btnW), (int) (btnY + btnH), btnBorder);
 
-                    context.getMatrices().push();
-                    context.getMatrices().translate((double)(btnX + 3.8f * scale), (double)(btnY + 1.2f * scale), 0.0);
+                    context.getMatrices().pushMatrix();
+                    context.getMatrices().translate((float)(btnX + 3.8f * scale), (float)(btnY + 1.2f * scale));
                     float iconScale = 0.95f * scale;
-                    context.getMatrices().scale((float)(iconScale), (float)(iconScale), 1.0f);
+                    context.getMatrices().scale((float)(iconScale), (float)(iconScale));
                     int iconColor = isBtnHovered ? 0xFFFFFFFF : ((drawAlpha << 24) | 0xE0F7FA);
                     context.drawTextWithShadow(tr, "⇅", 0, 0, iconColor);
-                    context.getMatrices().pop();
+                    context.getMatrices().popMatrix();
 
                     if (isBtnHovered) {
                         String sortTip = Text.translatable("holochest.sort_tip").getString();
@@ -426,11 +426,11 @@ public class HoloHudRenderer {
                     }
 
                     if (!stack.isEmpty()) {
-                        context.getMatrices().push();
-                        context.getMatrices().translate((double)(center.x), (double)(center.y), 0.0);
+                        context.getMatrices().pushMatrix();
+                        context.getMatrices().translate((float)(center.x), (float)(center.y));
 
                         float itemScale = (isSlotHovered ? 1.22f : 1.0f) * (sSize / 18f);
-                        context.getMatrices().scale((float)(itemScale), (float)(itemScale), 1.0f);
+                        context.getMatrices().scale((float)(itemScale), (float)(itemScale));
 
                         context.drawItem(stack, -8, -8);
                         int holoWash;
@@ -445,7 +445,7 @@ public class HoloHudRenderer {
                         context.drawItem(stack, -8, -8);
                 context.drawStackOverlay(tr, stack, -8, -8);
 
-                        context.getMatrices().pop();
+                        context.getMatrices().popMatrix();
                     }
                 }
             } else {
@@ -500,11 +500,11 @@ public class HoloHudRenderer {
                     }
 
                     if (!stack.isEmpty()) {
-                        context.getMatrices().push();
-                        context.getMatrices().translate((double)(center.x), (double)(center.y), 0.0);
+                        context.getMatrices().pushMatrix();
+                        context.getMatrices().translate((float)(center.x), (float)(center.y));
 
                         float itemScale = (isSlotHovered ? 1.22f : 1.0f) * (d.slotSize / 18f);
-                        context.getMatrices().scale((float)(itemScale), (float)(itemScale), 1.0f);
+                        context.getMatrices().scale((float)(itemScale), (float)(itemScale));
 
                         context.drawItem(stack, -8, -8);
                         int holoWash;
@@ -519,7 +519,7 @@ public class HoloHudRenderer {
                         context.drawItem(stack, -8, -8);
                 context.drawStackOverlay(tr, stack, -8, -8);
 
-                        context.getMatrices().pop();
+                        context.getMatrices().popMatrix();
                     }
                 }
             }
@@ -607,12 +607,12 @@ public class HoloHudRenderer {
         drawBorder(context, (int) px, (int) py, (int) (px + pW), (int) (py + pH), borderColor);
 
         String shulkerTitle = session.getPreviewTitle();
-        context.getMatrices().push();
-        context.getMatrices().translate((double)(px + 4f * scale), (double)(py + 2.5f * scale), 0.0);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate((float)(px + 4f * scale), (float)(py + 2.5f * scale));
         float sFontScale = 0.75f * scale;
-        context.getMatrices().scale((float)(sFontScale), (float)(sFontScale), 1.0f);
+        context.getMatrices().scale((float)(sFontScale), (float)(sFontScale));
         context.drawText(tr, "◆ " + shulkerTitle, 0, 0, (alpha << 24) | 0xD8B4FE, false);
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
 
         var stacks = session.getPreviewStacks();
         if (stacks == null) return;
@@ -647,12 +647,12 @@ public class HoloHudRenderer {
             }
 
             if (!stack.isEmpty()) {
-                context.getMatrices().push();
+                context.getMatrices().pushMatrix();
                 float itemCenterX = sx + slotSize / 2f;
                 float itemCenterY = sy + slotSize / 2f;
-                context.getMatrices().translate((double)(itemCenterX), (double)(itemCenterY), 0.0);
+                context.getMatrices().translate((float)(itemCenterX), (float)(itemCenterY));
                 float itemScale = (isHovered ? 1.20f : 1.0f) * (slotSize / 18f);
-                context.getMatrices().scale((float)(itemScale), (float)(itemScale), 1.0f);
+                context.getMatrices().scale((float)(itemScale), (float)(itemScale));
 
                 context.drawItem(stack, -8, -8);
                 int holoWash;
@@ -666,7 +666,7 @@ public class HoloHudRenderer {
                 context.fill(-8, -8, 8, 8, holoWash);
                 context.drawItem(stack, -8, -8);
                 context.drawStackOverlay(tr, stack, -8, -8);
-                context.getMatrices().pop();
+                context.getMatrices().popMatrix();
             }
         }
     }
@@ -715,13 +715,13 @@ public class HoloHudRenderer {
             int trailColor = (180 << 24) | 0x00E5FF;
             context.fill((int) cur.x - 2, (int) cur.y - 2, (int) cur.x + 2, (int) cur.y + 2, trailColor);
 
-            context.getMatrices().push();
-            context.getMatrices().translate((double)(cur.x), (double)(cur.y), 0.0);
+            context.getMatrices().pushMatrix();
+            context.getMatrices().translate((float)(cur.x), (float)(cur.y));
             float flightScale = 1.0f + (float) Math.sin(p * Math.PI) * 0.35f;
-            context.getMatrices().scale((float)(flightScale), (float)(flightScale), 1.0f);
+            context.getMatrices().scale((float)(flightScale), (float)(flightScale));
 
             context.drawItem(item.getStack(), -8, -8);
-            context.getMatrices().pop();
+            context.getMatrices().popMatrix();
         }
     }
 
@@ -815,10 +815,10 @@ public class HoloHudRenderer {
         boolean isEnchanted = isItemEnchanted(stack);
         float pulse = (float) Math.sin(now / 240.0) * 0.5f + 0.5f;
 
-        context.getMatrices().push();
-        context.getMatrices().translate(0.0f, 0.0f, 400.0f);
-        context.getMatrices().push();
-        context.getMatrices().translate(0.0f, 0.0f, 400.0f);
+        context.getMatrices().pushMatrix();
+        
+        context.getMatrices().pushMatrix();
+        
         int primaryColor = (theme != null) ? theme.primaryColor : 0x00E5FF;
 
         int outerGlow = isEnchanted ? (0x20000000 | 0xC084FC) : (0x18000000 | primaryColor);
@@ -865,8 +865,8 @@ public class HoloHudRenderer {
             int lineY = tipY + padY + l * lineSpacing + yOffset;
             context.drawTextWithShadow(tr, line, tipX + padX, lineY, 0xFFFFFFFF);
         }
-        context.getMatrices().pop();
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
+        context.getMatrices().popMatrix();
     }
 
 }
