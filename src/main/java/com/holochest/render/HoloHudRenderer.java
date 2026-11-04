@@ -123,7 +123,7 @@ public class HoloHudRenderer {
             data.projEmitter = projEmitter;
             data.projPanel = projPanel;
 
-            data.distance3D = (float) camera.getPos().distanceTo(panelPos);
+            data.distance3D = (float) camera.getCameraPos().distanceTo(panelPos);
             float clampedDist = Math.clamp(data.distance3D, 2.0f, 40.0f);
             float baseScale = Math.clamp(4.8f / clampedDist, 0.75f, 1.15f);
             boolean isFocused = true;

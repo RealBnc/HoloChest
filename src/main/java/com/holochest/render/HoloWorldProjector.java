@@ -24,7 +24,7 @@ public class HoloWorldProjector {
             return new ScreenPos(0, 0, -1, false);
         }
 
-        Vec3d camPos = camera.getPos();
+        Vec3d camPos = camera.getCameraPos();
         double rx = target.x - camPos.x;
         double ry = target.y - camPos.y;
         double rz = target.z - camPos.z;
