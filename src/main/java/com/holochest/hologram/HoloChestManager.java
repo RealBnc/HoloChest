@@ -584,8 +584,8 @@ public class HoloChestManager {
     public static boolean isShiftHeld() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.getWindow() == null) return false;
-        return InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_RIGHT_SHIFT)
+        return InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT_SHIFT)
+                || InputUtil.isKeyPressed(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_SHIFT)
                 || (client.options != null && client.options.sneakKey.isPressed());
     }
 
@@ -658,7 +658,7 @@ public class HoloChestManager {
 
         player.getInventory().insertStack(toGive.copy());
 
-        int selectedHotbar = player.getInventory().getSelectedSlot();
+        int selectedHotbar = player.getInventory().selectedSlot;
         int increasedSlot = -1;
 
         if (player.getInventory().getStack(selectedHotbar).getCount() > countsBefore[selectedHotbar]) {
@@ -717,22 +717,20 @@ public class HoloChestManager {
             if (slot == 2) return false;
 
             if (slot == 1) {
-                if (world == null) return true;
-                return world.getFuelRegistry().isFuel(stack);
+                return net.minecraft.block.entity.AbstractFurnaceBlockEntity.canUseAsFuel(stack);
             }
 
             if (slot == 0) {
                 if (world == null) return true;
                 var recipeManager = world.getRecipeManager();
                 if (recipeManager == null) return true;
-                var key = net.minecraft.recipe.RecipePropertySet.FURNACE_INPUT;
+                net.minecraft.recipe.RecipeType<?> type = net.minecraft.recipe.RecipeType.SMELTING;
                 if (b instanceof BlastFurnaceBlock) {
-                    key = net.minecraft.recipe.RecipePropertySet.BLAST_FURNACE_INPUT;
+                    type = net.minecraft.recipe.RecipeType.BLASTING;
                 } else if (b instanceof SmokerBlock) {
-                    key = net.minecraft.recipe.RecipePropertySet.SMOKER_INPUT;
+                    type = net.minecraft.recipe.RecipeType.SMOKING;
                 }
-                var propSet = recipeManager.getPropertySet(key);
-                return propSet != null && propSet.canUse(stack);
+                return recipeManager.getFirstMatch((net.minecraft.recipe.RecipeType) type, new net.minecraft.recipe.input.SingleStackRecipeInput(stack), world).isPresent();
             }
         }
         return true;
@@ -770,7 +768,7 @@ public class HoloChestManager {
         boolean shiftHeld = isShiftHeld();
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
-        int selectedHotbar = player.getInventory().getSelectedSlot();
+        int selectedHotbar = player.getInventory().selectedSlot;
         Vector2f fromPos = getHotbarSlotScreenPos(selectedHotbar, sw, sh); 
         Vector2f slotPos = hoveredSession.getSlotScreenPos(hoveredSlot);
 

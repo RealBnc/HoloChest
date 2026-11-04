@@ -21,6 +21,9 @@ public class HoloChestMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("m4lib")) {
+            throw new IllegalStateException("HoloChest requires m4lib!");
+        }
         HoloChestConfig.load();
         com.holochest.sound.HoloSoundHelper.registerSounds();
 
@@ -28,14 +31,14 @@ public class HoloChestMod implements ClientModInitializer {
                 "key.holochest.open",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_V,
-                KeyBinding.Category.MISC
+                "Holo Chest"
         ));
 
         holoSortKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.holochest.sort",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_R,
-                KeyBinding.Category.MISC
+                "Holo Chest"
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
