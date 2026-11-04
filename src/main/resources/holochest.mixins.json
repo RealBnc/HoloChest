@@ -2,14 +2,17 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.holochest.mixin",
-  "compatibilityLevel": "JAVA_25",
+  "compatibilityLevel": "JAVA_21",
   "client": [
-    "MinecraftMixin",
-    "MultiPlayerGameModeMixin",
+    "AbstractFurnaceBlockEntityAccessor",
+    "ChestBlockEntityMixin",
+    "ClientPlayerInteractionManagerMixin",
+    "EnderChestBlockEntityMixin",
+    "InGameHudMixin",
     "KeyboardInputMixin",
-    "ChestRendererMixin",
-    "ShulkerBoxRendererMixin",
-    "AbstractFurnaceBlockEntityAccessor"
+    "MinecraftClientMixin",
+    "ScreenMixin",
+    "ShulkerBoxBlockEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
