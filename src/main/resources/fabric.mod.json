@@ -9,7 +9,8 @@
     "m4ssivee"
   ],
   "contact": {
-    "homepage": "https://modrinth.com/mod/holochest",`n    "sources": "https://github.com/RealBnc/HoloChest"
+    "homepage": "https://modrinth.com/mod/holochest",
+    "sources": "https://github.com/RealBnc/HoloChest"
   },
   "license": "MIT",
   "icon": "assets/holochest/icon.png",
@@ -26,6 +27,7 @@
     "fabricloader": ">=0.16.0",
     "minecraft": "1.21.4",
     "java": ">=21",
-    "fabric-api": "*"
+    "fabric-api": "*",
+    "m4lib": "*"
   }
 }
