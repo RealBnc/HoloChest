@@ -442,7 +442,8 @@ public class HoloHudRenderer {
                             holoWash = isSlotHovered ? 0x3DE0FFFF : 0x2280D8FF;
                         }
                         context.fill(-8, -8, 8, 8, holoWash);
-                        context.drawItemInSlot(tr, stack, -8, -8);
+                        context.drawItem(stack, -8, -8);
+                context.drawStackOverlay(tr, stack, -8, -8);
 
                         context.getMatrices().pop();
                     }
@@ -515,7 +516,8 @@ public class HoloHudRenderer {
                             holoWash = isSlotHovered ? 0x3DE0FFFF : 0x2280D8FF;
                         }
                         context.fill(-8, -8, 8, 8, holoWash);
-                        context.drawItemInSlot(tr, stack, -8, -8);
+                        context.drawItem(stack, -8, -8);
+                context.drawStackOverlay(tr, stack, -8, -8);
 
                         context.getMatrices().pop();
                     }
@@ -662,7 +664,8 @@ public class HoloHudRenderer {
                     holoWash = isHovered ? 0x3DE0FFFF : 0x2280D8FF;
                 }
                 context.fill(-8, -8, 8, 8, holoWash);
-                context.drawItemInSlot(tr, stack, -8, -8);
+                context.drawItem(stack, -8, -8);
+                context.drawStackOverlay(tr, stack, -8, -8);
                 context.getMatrices().pop();
             }
         }

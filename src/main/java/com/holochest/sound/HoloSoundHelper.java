@@ -49,7 +49,7 @@ public class HoloSoundHelper {
 
     private static PositionedSoundInstance createUiSound(SoundEvent sound, float volume, float pitch) {
         return new PositionedSoundInstance(
-                sound.getId(),
+                sound.id(),
                 SoundCategory.PLAYERS,
                 volume,
                 pitch,
