@@ -1,7 +1,7 @@
 package com.holochest.hologram;
 
 import com.holochest.sound.HoloSoundHelper;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.item.ItemStack;
 import org.joml.Vector2f;
 
 public class FlyingItem {
